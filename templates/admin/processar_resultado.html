@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Resultado do Processamento - NEXO{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-10 offset-lg-1">
+        <div class="card shadow-sm">
+            <div class="card-header bg-dark text-white">
+                <h3 class="mb-0">Resultado do Processamento — Análise #{{ analise.id_analise }}</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-success">
+                    KPIs consolidados e persistidos em <code>indicador_analise</code>.
+                    A análise permanece em <strong>{{ analise.status_analise }}</strong> —
+                    a conclusão ocorre apenas na publicação da devolutiva estratégica.
+                </div>
+
+                <h4 class="mt-4 text-secondary">Indicadores oficiais (tabela <code>indicador_analise</code>)</h4>
+                <table class="table table-bordered table-striped mt-2">
+                    <tbody>
+                        <tr>
+                            <th style="width:40%">Faturamento total</th>
+                            <td><strong>R$ {{ "%.2f"|format(resultado.kpis.faturamento_total) }}</strong></td>
+                        </tr>
+                        <tr>
+                            <th>Total comprado (notas fiscais)</th>
+                            <td>R$ {{ "%.2f"|format(resultado.kpis.total_comprado) }}</td>
+                        </tr>
+                        <tr>
+                            <th>Indicador de Pressão de Estoque</th>
+                            <td>
+                                <strong>R$ {{ "%.2f"|format(resultado.kpis.saldo_estimado_compras_vendas) }}</strong>
+                                <br>
+                                <small class="text-muted">
+                                    Saldo estimado entre compras e vendas (total comprado − faturamento).
+                                    Representa o descasamento financeiro/operacional do período —
+                                    não é lucro, margem, CMV nem estoque físico real.
+                                </small>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Produto mais vendido (quantidade)</th>
+                            <td>{{ resultado.kpis.produto_mais_vendido_nome }}
+                                ({{ "%.0f"|format(resultado.kpis.produto_mais_vendido_quantidade) }} un)</td>
+                        </tr>
+                        <tr>
+                            <th>Produto de maior faturamento</th>
+                            <td>{{ resultado.kpis.produto_maior_faturamento_nome }}
+                                (R$ {{ "%.2f"|format(resultado.kpis.produto_maior_faturamento_valor) }})</td>
+                        </tr>
+                        <tr>
+                            <th>Produto com maior saldo estimado parado</th>
+                            <td>
+                                {% if resultado.kpis.produto_maior_saldo_parado_nome %}
+                                    {{ resultado.kpis.produto_maior_saldo_parado_nome }}
+                                    ({{ "%.0f"|format(resultado.kpis.saldo_estimado_parado) }} un em saldo)
+                                {% else %}
+                                    <span class="text-muted">Não calculado — ver limitação técnica abaixo.</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                {% if resultado.telemetria.produtos_estoque_pdv_negativo is defined %}
+                <h4 class="mt-4 text-secondary">Telemetria (em memória, não persistida)</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card p-3 border-warning">
+                            <h5 class="mb-2">Qualidade do registro de estoque no PDV</h5>
+                            <p class="mb-1">
+                                Produtos com saldo de estoque negativo informado pelo PDV:
+                                <strong>{{ resultado.telemetria.produtos_estoque_pdv_negativo }}</strong>
+                            </p>
+                            <p class="mb-0">
+                                Taxa de inconsistência:
+                                <strong>{{ "%.1f"|format(resultado.telemetria.taxa_estoque_pdv_negativo * 100) }}%</strong>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if resultado.alertas %}
+                <h4 class="mt-4 text-warning">Alertas e limitações</h4>
+                <div class="alert alert-warning">
+                    <ul class="mb-0">
+                        {% for alerta in resultado.alertas %}
+                        <li>{{ alerta }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                {% endif %}
+
+                <div class="mt-4">
+                    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Voltar ao Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+# NEXO - Faturamento Inteligente | .gitignore
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# === Ambientes virtuais ===
+venv/
+.venv/
+env/
+ENV/
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# === Memória local da IA (Claude Code) ===
+# Mantém o contexto/regras privadas da IA fora do repositório público.
+.claude/
+
+# === Flask / app ===
+instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# === Uploads e Dados (Arquivos de Clientes / LGPD) ===
+uploads/*
+!uploads/.gitkeep
+dados/*.xlsx
+dados/*.csv
+
+# === Variáveis de ambiente ===
+.env
+.env.local
+.env.*.local
+
+# === Logs ===
+*.log
+logs/
+
+# === Sistema operacional ===
+Thumbs.db
+ehthumbs.db

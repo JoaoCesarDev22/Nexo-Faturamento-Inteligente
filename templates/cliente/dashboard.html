@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Meu Painel - NEXO{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="h3 mb-4">Olá, {{ current_user.nome }}</h1>
+
+        {% if empresa %}
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">{{ empresa.razao_social }}</h5>
+                    <p class="mb-1"><small class="text-muted">CNPJ: {{ empresa.cnpj }}</small></p>
+                    <p class="mb-1">
+                        Plano:
+                        <span class="badge bg-primary">{{ empresa.plano_atual.nome_plano }}</span>
+                    </p>
+                    <p class="mb-0">
+                        Status da conta:
+                        {% if empresa.status_conta == 'ATIVA' %}
+                            <span class="badge bg-success">{{ empresa.status_conta }}</span>
+                        {% elif empresa.status_conta == 'SUSPENSA' %}
+                            <span class="badge bg-warning text-dark">{{ empresa.status_conta }}</span>
+                        {% else %}
+                            <span class="badge bg-danger">{{ empresa.status_conta }}</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        {% endif %}
+
+        <div class="alert alert-info">
+            Sua primeira análise está em preparação. Assim que a equipe NEXO
+            concluir o processamento e publicar a devolutiva, ela aparecerá aqui.
+        </div>
+    </div>
+</div>
+{% endblock %}
