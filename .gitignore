@@ -19,6 +19,7 @@ venv/
 .venv/
 env/
 ENV/
+.env.example/
 
 # === IDE / Editor ===
 .vscode/
