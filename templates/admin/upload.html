@@ -1,70 +1,161 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 
-{% block title %}Upload de Relatório - NEXO{% endblock %}
+{% block title %}Detalhe da análise — NEXO Admin{% endblock %}
+{% block page_title %}Análise · Upload{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-8 offset-md-2">
-        <h1 class="h3 mb-4">Upload de Relatório</h1>
+{% set titulo_emp = analise.empresa.nome_fantasia or analise.empresa.razao_social %}
+{% set up_v = (analise.uploads | selectattr('tipo_relatorio', 'equalto', 'VENDAS') | list | first) %}
+{% set up_c = (analise.uploads | selectattr('tipo_relatorio', 'equalto', 'COMPRAS') | list | first) %}
+{% set stv = up_v.status_processamento if up_v else none %}
+{% set stc = up_c.status_processamento if up_c else none %}
+{% set pode_processar = up_v and up_c %}
 
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Análise #{{ analise.id_analise }}</h5>
-                <p class="text-muted mb-1">
-                    Período: {{ analise.periodo_inicio }} a {{ analise.periodo_fim }}
-                </p>
-                <p class="text-muted mb-0">
-                    Status atual: <strong>{{ analise.status_analise }}</strong>
-                </p>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-body">
-                <form method="POST" enctype="multipart/form-data">
-                    <div class="mb-3">
-                        <label for="tipo_relatorio" class="form-label">Tipo de relatório</label>
-                        <select name="tipo_relatorio" id="tipo_relatorio" class="form-select" required>
-                            <option value="">— Selecione —</option>
-                            <option value="VENDAS">Relatório de Vendas (Giro de Vendas por Produto)</option>
-                            <option value="COMPRAS">Relatório de Compras (Posição de Compras)</option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label for="arquivo" class="form-label">Arquivo (CSV ou XLSX)</label>
-                        <input type="file" name="arquivo" id="arquivo" class="form-control"
-                               accept=".csv,.xlsx" required>
-                    </div>
-                    <button type="submit" class="btn btn-dark">Enviar</button>
-                </form>
-            </div>
-        </div>
-
-        <h5 class="mt-4">Uploads desta análise</h5>
-        {% if analise.uploads %}
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th>Tipo</th>
-                        <th>Arquivo</th>
-                        <th>Status</th>
-                        <th>Enviado em</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for u in analise.uploads %}
-                    <tr>
-                        <td><span class="badge bg-secondary">{{ u.tipo_relatorio }}</span></td>
-                        <td>{{ u.nome_arquivo_original }}</td>
-                        <td>{{ u.status_processamento }}</td>
-                        <td>{{ u.data_upload.strftime('%d/%m/%Y %H:%M') }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p class="text-muted">Nenhum upload realizado ainda.</p>
-        {% endif %}
+<div class="page-head">
+    <div>
+        <h1>{{ titulo_emp }}</h1>
+        <p class="sub">Análise {{ 'Quinzenal' if analise.tipo_analise == 'QUINZENAL' else 'Mensal' }} · {{ analise.periodo_inicio.strftime('%d/%m/%Y') }} – {{ analise.periodo_fim.strftime('%d/%m/%Y') }} · ref. {{ '%02d'|format(analise.mes_referencia) }}/{{ analise.ano_referencia }}</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.analises') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar às análises</a>
     </div>
 </div>
+
+{# ---------------- Resumo da análise ---------------- #}
+<div class="nexo-card mb-4">
+    <div class="nexo-card-body">
+        <div class="row g-3">
+            <div class="col-6 col-md-3"><div class="kpi-label">Análise</div><div class="fw-num">#{{ analise.id_analise }}</div></div>
+            <div class="col-6 col-md-3"><div class="kpi-label">Tipo</div><div>{{ 'Quinzenal' if analise.tipo_analise == 'QUINZENAL' else 'Mensal' }}</div></div>
+            <div class="col-6 col-md-3"><div class="kpi-label">Referência</div><div class="t-mono">{{ '%02d'|format(analise.mes_referencia) }}/{{ analise.ano_referencia }}</div></div>
+            <div class="col-6 col-md-3"><div class="kpi-label">Status</div><div>{{ m.badge_analise(analise.status_analise) }}</div></div>
+        </div>
+    </div>
+</div>
+
+{# ---------------- Uploads VENDAS / COMPRAS (reais) ---------------- #}
+<div class="row g-3 mb-4">
+    {% for slot in [
+        {'tipo': 'VENDAS', 'titulo': 'Relatório de Vendas', 'desc': 'Giro de vendas por produto', 'up': up_v},
+        {'tipo': 'COMPRAS', 'titulo': 'Relatório de Compras', 'desc': 'Posição de compras do período', 'up': up_c}
+    ] %}
+    <div class="col-12 col-md-6">
+        <div class="upload-slot {{ 'is-done' if (slot.up and slot.up.status_processamento == 'PROCESSADO') else ('is-error' if (slot.up and slot.up.status_processamento == 'ERRO') else '') }}">
+            <div class="upload-slot-head">
+                <div class="title"><i class="bi bi-filetype-csv"></i> {{ slot.titulo }}</div>
+                {% if slot.up %}{{ m.badge_upload(slot.up.status_processamento) }}{% else %}<span class="nexo-badge b-muted">NÃO ENVIADO</span>{% endif %}
+            </div>
+            <p class="field-hint">{{ slot.desc }} · CSV ou XLSX</p>
+            {% if slot.up and slot.up.mensagem_erro %}
+            <div class="alert alert-danger py-2 px-3">
+                <i class="bi bi-exclamation-triangle"></i> {{ slot.up.mensagem_erro }}
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('admin.analise_upload', id_analise=analise.id_analise) }}" enctype="multipart/form-data">
+                <input type="hidden" name="tipo_relatorio" value="{{ slot.tipo }}">
+                <label class="dropzone" data-dz>
+                    <div class="dz-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                    <div class="dz-title" data-dz-label>{{ slot.up.nome_arquivo_original if slot.up else 'Arraste o arquivo ou clique para selecionar' }}</div>
+                    <div class="dz-hint">Formatos aceitos: .csv, .xlsx</div>
+                    <input type="file" name="arquivo" accept=".csv,.xlsx" data-dz-input>
+                </label>
+                <button type="submit" class="btn-ghost w-100 justify-content-center mt-3"><i class="bi bi-upload"></i> {{ 'Reenviar' if slot.up else 'Enviar' }} {{ slot.tipo|capitalize }}</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{# ---------------- Processar ---------------- #}
+<div class="nexo-card mb-4">
+    <div class="nexo-card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+            <h2 style="font-size:1.02rem;margin:0 0 4px;">Processar análise</h2>
+            <p class="sub mb-0" style="color:var(--text-muted);font-size:0.88rem;">
+                {% if pode_processar %}
+                    Os dois relatórios estão disponíveis. O motor ETL calculará os indicadores.
+                {% else %}
+                    Envie os relatórios de <strong>Vendas</strong> e <strong>Compras</strong> para habilitar o processamento.
+                {% endif %}
+            </p>
+        </div>
+        <form method="POST" action="{{ url_for('admin.processar_analise', id_analise=analise.id_analise) }}">
+            <button type="submit" class="btn-nexo" {{ '' if pode_processar else 'disabled' }}>
+                <i class="bi bi-cpu"></i> Processar agora
+            </button>
+        </form>
+    </div>
+</div>
+
+{# ---------------- KPIs: somente se houver indicador real ---------------- #}
+<div class="nexo-card-head px-0 mb-3" style="border:none;">
+    <div><h2>Indicadores gerados</h2><p class="sub">Resultado consolidado do período</p></div>
+</div>
+{% if analise.indicador %}
+{% set ind = analise.indicador %}
+<div class="row g-3 mb-3">
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Faturamento total</span><span class="kpi-icon is-green"><i class="bi bi-graph-up-arrow"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.faturamento_total) }}</div></div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Total comprado</span><span class="kpi-icon is-info"><i class="bi bi-bag-check"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.total_comprado) }}</div></div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Indicador de Pressão de Estoque</span><span class="kpi-icon is-amber"><i class="bi bi-box-seam"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.saldo_estimado_compras_vendas) }}</div></div>
+    </div>
+</div>
+<div class="mb-3">{{ m.nota_pressao() }}</div>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Produto mais vendido</span><span class="kpi-icon"><i class="bi bi-trophy"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_mais_vendido_nome or '—' }}</div><div class="kpi-foot">{{ m.num(ind.produto_mais_vendido_quantidade) }} un</div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Maior faturamento</span><span class="kpi-icon"><i class="bi bi-cash-stack"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_maior_faturamento_nome or '—' }}</div><div class="kpi-foot">R$ {{ m.brl(ind.produto_maior_faturamento_valor) }}</div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Maior saldo estimado parado</span><span class="kpi-icon"><i class="bi bi-archive"></i></span></div>
+            {% if ind.produto_maior_saldo_parado_nome %}
+                <div class="fw-bold mt-1">{{ ind.produto_maior_saldo_parado_nome }}</div><div class="kpi-foot">{{ m.num(ind.saldo_estimado_parado) }} un em saldo</div>
+            {% else %}
+                <div class="fw-bold mt-1 text-dim">Não calculado</div><div class="kpi-foot">compras sem produto + quantidade</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+<div class="d-flex justify-content-end">
+    <a href="{{ url_for('admin.analise_relatorio', id_analise=analise.id_analise) }}" class="btn-nexo"><i class="bi bi-pencil-square"></i> Editor do relatório estratégico</a>
+</div>
+{% else %}
+<div class="nexo-card">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-bar-chart-line"></i></div>
+        <h3>Indicadores ainda não foram gerados para esta análise.</h3>
+        <p>Envie os relatórios de VENDAS e COMPRAS e clique em “Processar agora” para gerar os indicadores.</p>
+        <a href="{{ url_for('admin.analise_relatorio', id_analise=analise.id_analise) }}" class="btn-ghost mt-3"><i class="bi bi-pencil-square"></i> Editor do relatório estratégico</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* Dropzone visual: reflete o arquivo escolhido e o estado de drag (sem AJAX). */
+  document.querySelectorAll('[data-dz]').forEach(function (dz) {
+    var input = dz.querySelector('[data-dz-input]');
+    var label = dz.querySelector('[data-dz-label]');
+    if (input) {
+      input.addEventListener('change', function () {
+        if (input.files && input.files.length && label) label.textContent = input.files[0].name;
+      });
+    }
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('is-drag'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('is-drag'); });
+    });
+  });
+</script>
 {% endblock %}

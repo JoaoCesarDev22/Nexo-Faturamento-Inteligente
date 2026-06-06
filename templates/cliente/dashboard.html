@@ -1,39 +1,208 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 
-{% block title %}Meu Painel - NEXO{% endblock %}
+{% block title %}Visão Geral — NEXO{% endblock %}
+{% block page_title %}Visão Geral{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="h3 mb-4">Olá, {{ current_user.nome }}</h1>
+{% set suspensa = empresa and empresa.status_conta == 'SUSPENSA' %}
 
-        {% if empresa %}
-            <div class="card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">{{ empresa.razao_social }}</h5>
-                    <p class="mb-1"><small class="text-muted">CNPJ: {{ empresa.cnpj }}</small></p>
-                    <p class="mb-1">
-                        Plano:
-                        <span class="badge bg-primary">{{ empresa.plano_atual.nome_plano }}</span>
-                    </p>
-                    <p class="mb-0">
-                        Status da conta:
-                        {% if empresa.status_conta == 'ATIVA' %}
-                            <span class="badge bg-success">{{ empresa.status_conta }}</span>
-                        {% elif empresa.status_conta == 'SUSPENSA' %}
-                            <span class="badge bg-warning text-dark">{{ empresa.status_conta }}</span>
-                        {% else %}
-                            <span class="badge bg-danger">{{ empresa.status_conta }}</span>
-                        {% endif %}
-                    </p>
-                </div>
+<div class="page-head">
+    <div>
+        <h1>Olá, {{ current_user.nome }}</h1>
+        <p class="sub">{% if empresa %}{{ empresa.nome_fantasia or empresa.razao_social }}{% else %}Painel do cliente NEXO{% endif %}</p>
+    </div>
+</div>
+
+{% if suspensa %}
+<div class="banner-suspensa">
+    <i class="bi bi-exclamation-octagon"></i>
+    <div>
+        <strong>Conta suspensa: você ainda pode acessar seu histórico de análises publicadas, mas novas entregas estão temporariamente bloqueadas.</strong>
+    </div>
+</div>
+{% endif %}
+
+{% if empresa %}
+<div class="nexo-card mb-4">
+    <div class="nexo-card-body">
+        <div class="row g-3 align-items-center">
+            <div class="col-12 col-md-5">
+                <div class="kpi-label">Empresa</div>
+                <div class="fw-bold" style="font-size:1.05rem;">{{ empresa.razao_social }}</div>
+                <div class="t-mono text-dim" style="font-size:0.85rem;">CNPJ {{ empresa.cnpj }}</div>
             </div>
-        {% endif %}
-
-        <div class="alert alert-info">
-            Sua primeira análise está em preparação. Assim que a equipe NEXO
-            concluir o processamento e publicar a devolutiva, ela aparecerá aqui.
+            <div class="col-6 col-md-3">
+                <div class="kpi-label">Plano</div>
+                <div>{{ m.badge_plano(empresa.plano_atual.nome_plano if empresa.plano_atual else '—') }}</div>
+            </div>
+            <div class="col-6 col-md-4">
+                <div class="kpi-label">Status da conta</div>
+                <div>{{ m.badge_conta(empresa.status_conta) }}</div>
+            </div>
         </div>
     </div>
 </div>
+{% endif %}
+
+{% if not analise %}
+{# ---------------- Sem análise publicada ---------------- #}
+<div class="nexo-card mb-4">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-hourglass-split"></i></div>
+        <h3>Sua primeira análise está em preparação.</h3>
+        <p>Assim que a equipe NEXO concluir o processamento e publicar a devolutiva estratégica, ela aparecerá aqui e no Histórico.</p>
+    </div>
+</div>
+{% else %}
+{# ---------------- Com análise publicada (dados reais de indicador_analise) ---------------- #}
+{% if analise.indicador %}
+{% set ind = analise.indicador %}
+<div class="row g-3 mb-3">
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Faturamento total</span><span class="kpi-icon is-green"><i class="bi bi-graph-up-arrow"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.faturamento_total) }}</div></div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Total comprado</span><span class="kpi-icon is-info"><i class="bi bi-bag-check"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.total_comprado) }}</div></div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Indicador de Pressão de Estoque</span><span class="kpi-icon is-amber"><i class="bi bi-box-seam"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.saldo_estimado_compras_vendas) }}</div></div>
+    </div>
+</div>
+<div class="mb-4">{{ m.nota_pressao() }}</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Produto mais vendido</span><span class="kpi-icon"><i class="bi bi-trophy"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_mais_vendido_nome or '—' }}</div><div class="kpi-foot">{{ m.num(ind.produto_mais_vendido_quantidade) }} un</div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Maior faturamento</span><span class="kpi-icon"><i class="bi bi-cash-stack"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_maior_faturamento_nome or '—' }}</div><div class="kpi-foot">R$ {{ m.brl(ind.produto_maior_faturamento_valor) }}</div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Maior saldo estimado parado</span><span class="kpi-icon"><i class="bi bi-archive"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_maior_saldo_parado_nome or 'Não calculado' }}</div><div class="kpi-foot">{% if ind.saldo_estimado_parado is not none %}{{ m.num(ind.saldo_estimado_parado) }} un em saldo{% else %}compras sem produto + quantidade{% endif %}</div></div>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-6">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head"><div><h2>Compras x Vendas</h2><p class="sub">Período mais recente</p></div></div>
+            <div class="nexo-card-body"><div id="chartCliente" class="chart-box sm"></div></div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-3">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head"><div><h2>Indicador de Pressão de Estoque</h2><p class="sub">Sinal gerencial estimado</p></div></div>
+            <div class="nexo-card-body"><div id="chartPressaoCliente" class="chart-box sm"></div></div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-3">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head"><div><h2>Relatório estratégico</h2><p class="sub">Última devolutiva</p></div></div>
+            <div class="nexo-card-body">
+                {% if analise.relatorio %}
+                <div class="fw-bold mb-2">{{ analise.relatorio.titulo }}</div>
+                <p class="text-muted-2" style="font-size:0.9rem;">{{ (analise.relatorio.conclusao_estrategica or '')|truncate(160) }}</p>
+                {% endif %}
+                <a href="{{ url_for('cliente.analise', id_analise=analise.id_analise) }}" class="btn-nexo mt-2"><i class="bi bi-file-earmark-text"></i> Abrir análise completa</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="nexo-card mb-4">
+    <div class="nexo-card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+            <div class="fw-bold mb-1">{{ analise.relatorio.titulo if analise.relatorio else 'Análise publicada' }}</div>
+            <p class="sub mb-0" style="color:var(--text-muted);font-size:0.9rem;">Sua devolutiva estratégica está disponível.</p>
+        </div>
+        <a href="{{ url_for('cliente.analise', id_analise=analise.id_analise) }}" class="btn-nexo"><i class="bi bi-file-earmark-text"></i> Abrir análise</a>
+    </div>
+</div>
+{% endif %}
+
+{% if analises and analises|length > 0 %}
+<div class="table-wrap">
+    <div class="nexo-card-head">
+        <div><h2>Histórico recente</h2><p class="sub">Suas análises publicadas</p></div>
+        <a href="{{ url_for('cliente.historico') }}" class="btn-ghost btn-sm-x"><i class="bi bi-clock-history"></i> Ver tudo</a>
+    </div>
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead><tr><th>Período</th><th>Tipo</th><th>Status</th><th class="text-end">Ação</th></tr></thead>
+            <tbody>
+                {% for a in analises[:5] %}
+                <tr>
+                    <td class="t-mono t-mut">{{ a.periodo_inicio.strftime('%d/%m/%Y') }} – {{ a.periodo_fim.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ 'Quinzenal' if a.tipo_analise == 'QUINZENAL' else 'Mensal' }}</td>
+                    <td>{{ m.badge_analise(a.status_analise) }}</td>
+                    <td class="text-end">
+                        <a href="{{ url_for('cliente.analise', id_analise=a.id_analise) }}" class="btn-ghost btn-sm-x"><i class="bi bi-box-arrow-up-right"></i> Abrir</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+
+{% if analises_em_andamento %}
+<div class="table-wrap mt-4">
+    <div class="nexo-card-head">
+        <div><h2>Análises em andamento</h2><p class="sub">Acompanhamento das próximas entregas da sua empresa</p></div>
+    </div>
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead><tr><th>Período</th><th>Tipo</th><th>Status</th></tr></thead>
+            <tbody>
+                {% for a in analises_em_andamento %}
+                <tr>
+                    <td class="t-mono t-mut">{{ a.periodo_inicio.strftime('%d/%m/%Y') }} – {{ a.periodo_fim.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ 'Quinzenal' if a.tipo_analise == 'QUINZENAL' else 'Mensal' }}</td>
+                    <td>{{ m.badge_analise(a.status_analise) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="contact-card mt-4" id="contato-nexo">
+    <div class="contact-card-icon"><i class="bi bi-headset"></i></div>
+    <div>
+        <h2>Contato NEXO</h2>
+        <p>Para dúvidas sobre sua análise, entre em contato com a equipe NEXO pelo canal externo informado no onboarding.</p>
+        <div class="contact-details">
+            <span><i class="bi bi-whatsapp"></i> WhatsApp: preencher depois</span>
+            <span><i class="bi bi-envelope"></i> E-mail: preencher depois</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if analise and analise.indicador and dashboard_data %}
+<script>
+  const dashboardData = {{ dashboard_data|tojson }};
+
+  NEXO.plot('chartCliente', [{
+    type: 'bar',
+    x: dashboardData.comparativo.labels,
+    y: dashboardData.comparativo.values,
+    marker: { color: ['#22c55e', '#a855f7'] },
+    width: 0.5,
+    hovertemplate: '%{x}: R$ %{y:,.2f}<extra></extra>'
+  }], { yaxis: { tickprefix: 'R$ ', rangemode: 'tozero' }, height: 240 });
+
+  NEXO.plot('chartPressaoCliente', [{
+    type: 'indicator',
+    mode: 'number',
+    value: dashboardData.pressao_estoque,
+    number: { prefix: 'R$ ', valueformat: ',.2f', font: { color: '#fbd07a', size: 28 } }
+  }], { margin: { l: 10, r: 10, t: 12, b: 12 }, height: 240 });
+</script>
+{% endif %}
 {% endblock %}

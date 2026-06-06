@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Análise publicada — NEXO{% endblock %}
+{% block page_title %}Análise{% endblock %}
+
+{% block content %}
+{% set rel = analise.relatorio %}
+{% set ind = analise.indicador %}
+
+<div class="page-head">
+    <div>
+        <h1>{{ rel.titulo if rel else 'Análise publicada' }}</h1>
+        <p class="sub">Período: {{ analise.periodo_inicio.strftime('%d/%m/%Y') }} – {{ analise.periodo_fim.strftime('%d/%m/%Y') }}</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('cliente.historico') }}" class="btn-ghost"><i class="bi bi-clock-history"></i> Histórico</a>
+        <a href="{{ url_for('cliente.dashboard') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar ao painel</a>
+    </div>
+</div>
+
+{# ===================== Seção 1 — Indicadores ===================== #}
+<div class="nexo-card-head px-0" style="border:none;">
+    <div><h2><i class="bi bi-bar-chart-line text-purple"></i> Indicadores do período</h2></div>
+</div>
+{% if ind %}
+<div class="row g-3 mb-3">
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Faturamento total</span><span class="kpi-icon is-green"><i class="bi bi-graph-up-arrow"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.faturamento_total) }}</div></div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Total comprado</span><span class="kpi-icon is-info"><i class="bi bi-bag-check"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.total_comprado) }}</div></div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Indicador de Pressão de Estoque</span><span class="kpi-icon is-amber"><i class="bi bi-box-seam"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(ind.saldo_estimado_compras_vendas) }}</div></div>
+    </div>
+</div>
+<div class="mb-4">{{ m.nota_pressao() }}</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Produto mais vendido</span><span class="kpi-icon"><i class="bi bi-trophy"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_mais_vendido_nome or '—' }}</div><div class="kpi-foot">{{ m.num(ind.produto_mais_vendido_quantidade) }} un</div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Maior faturamento</span><span class="kpi-icon"><i class="bi bi-cash-stack"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_maior_faturamento_nome or '—' }}</div><div class="kpi-foot">R$ {{ m.brl(ind.produto_maior_faturamento_valor) }}</div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Maior saldo estimado parado</span><span class="kpi-icon"><i class="bi bi-archive"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_maior_saldo_parado_nome or 'Não calculado' }}</div><div class="kpi-foot">{% if ind.saldo_estimado_parado is not none %}{{ m.num(ind.saldo_estimado_parado) }} un em saldo{% else %}—{% endif %}</div></div>
+    </div>
+</div>
+
+<div class="nexo-card mb-5">
+    <div class="nexo-card-head"><div><h2>Compras x Vendas</h2><p class="sub">Comparativo do período</p></div></div>
+    <div class="nexo-card-body"><div id="chartAnaliseCli" class="chart-box sm"></div></div>
+</div>
+{% else %}
+<div class="nexo-card mb-5">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-bar-chart-line"></i></div>
+        <h3>Indicadores ainda não foram gerados para esta análise.</h3>
+        <p>A devolutiva estratégica abaixo já está disponível.</p>
+    </div>
+</div>
+{% endif %}
+
+{# ===================== Seção 2 — Relatório estratégico ===================== #}
+<div class="nexo-card-head px-0" style="border:none;">
+    <div><h2><i class="bi bi-file-earmark-text text-purple"></i> Relatório estratégico</h2></div>
+</div>
+<div class="nexo-card">
+    <div class="nexo-card-body relatorio-doc">
+        {% if rel.resumo_executivo %}
+        <div class="relatorio-block">
+            <div class="rb-label"><i class="bi bi-card-text"></i> Resumo executivo</div>
+            <div class="rb-body">{{ rel.resumo_executivo }}</div>
+        </div>
+        {% endif %}
+        {% if rel.pontos_positivos %}
+        <div class="relatorio-block">
+            <div class="rb-label"><i class="bi bi-hand-thumbs-up"></i> Pontos positivos</div>
+            <div class="rb-body">{{ rel.pontos_positivos }}</div>
+        </div>
+        {% endif %}
+        {% if rel.pontos_de_alerta %}
+        <div class="relatorio-block">
+            <div class="rb-label"><i class="bi bi-exclamation-triangle"></i> Pontos de alerta</div>
+            <div class="rb-body">{{ rel.pontos_de_alerta }}</div>
+        </div>
+        {% endif %}
+        {% if rel.recomendacoes %}
+        <div class="relatorio-block">
+            <div class="rb-label"><i class="bi bi-lightbulb"></i> Recomendações</div>
+            <div class="rb-body">{{ rel.recomendacoes }}</div>
+        </div>
+        {% endif %}
+        <div class="relatorio-block is-conclusao mb-0">
+            <div class="rb-label"><i class="bi bi-flag"></i> Conclusão estratégica</div>
+            <div class="rb-body">{{ rel.conclusao_estrategica }}</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if analise.indicador %}
+<script>
+  NEXO.plot('chartAnaliseCli', [{
+    type: 'bar',
+    x: ['Faturamento', 'Total comprado'],
+    y: [{{ (analise.indicador.faturamento_total or 0)|float }}, {{ (analise.indicador.total_comprado or 0)|float }}],
+    marker: { color: ['#22c55e', '#a855f7'] },
+    width: 0.5,
+    hovertemplate: '%{x}: R$ %{y:,.2f}<extra></extra>'
+  }], { yaxis: { tickprefix: 'R$ ', rangemode: 'tozero' }, height: 240 });
+</script>
+{% endif %}
+{% endblock %}

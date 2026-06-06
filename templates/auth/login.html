@@ -1,28 +1,118 @@
 {% extends "base.html" %}
 
-{% block title %}Login - NEXO{% endblock %}
+{% block title %}Entrar — NEXO{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center mt-5">
-    <div class="col-md-5">
-        <div class="card shadow-sm">
-            <div class="card-body p-4">
-                <h2 class="text-center mb-4">NEXO</h2>
-                <p class="text-center text-muted mb-4">Faturamento Inteligente</p>
-
-                <form method="POST" action="{{ url_for('auth.login') }}">
-                    <div class="mb-3">
-                        <label for="email" class="form-label">E-mail</label>
-                        <input type="email" name="email" id="email" class="form-control" required autofocus>
-                    </div>
-                    <div class="mb-3">
-                        <label for="senha" class="form-label">Senha</label>
-                        <input type="password" name="senha" id="senha" class="form-control" required>
-                    </div>
-                    <button type="submit" class="btn btn-dark w-100">Entrar</button>
-                </form>
-            </div>
+{# Esta página é renderizada DENTRO de .auth-wrap (base.html, ramo não autenticado).
+   As flashes são exibidas localmente abaixo, dentro do card — base.html não mostra
+   flashes globais para visitantes. #}
+<div class="auth-card">
+    <div class="auth-brand">
+        <div class="auth-logo">
+            <img src="{{ url_for('static', filename='img/nexo-logo.jpeg') }}" alt="Logo NEXO">
+        </div>
+        <p class="auth-eyebrow">NEXO <span>Faturamento Inteligente</span></p>
+        <div>
+            <h1 class="auth-title">Acesso ao Portal</h1>
+            <p class="auth-sub">Escolha seu perfil ou insira o e-mail</p>
         </div>
     </div>
+
+    {# O toggle "tipo_acesso" é APENAS um conforto visual: o backend (auth.login)
+       autentica por e-mail/senha e direciona conforme `Usuario.role`. Mantemos o
+       hidden field para preservar a UX do Hélio; ignorá-lo no servidor é seguro. #}
+    <form method="POST" action="{{ url_for('auth.login') }}">
+        <input type="hidden" name="tipo_acesso" id="tipo_acesso" value="{{ tipo_acesso|default('CLIENTE') }}">
+
+        <div class="mb-4">
+            <span class="nexo-label">Perfil de acesso</span>
+            <div class="access-switch" role="group" aria-label="Escolha o perfil de acesso">
+                <button type="button"
+                        class="access-option {{ 'active' if tipo_acesso == 'ADMIN' }}"
+                        data-access-type="ADMIN"
+                        aria-pressed="{{ 'true' if tipo_acesso == 'ADMIN' else 'false' }}">
+                    <i class="bi bi-stars"></i> Time Nexo
+                </button>
+                <button type="button"
+                        class="access-option {{ 'active' if tipo_acesso != 'ADMIN' }}"
+                        data-access-type="CLIENTE"
+                        aria-pressed="{{ 'false' if tipo_acesso == 'ADMIN' else 'true' }}">
+                    <i class="bi bi-shop"></i> Cliente
+                </button>
+            </div>
+        </div>
+
+        {# Flashes locais (erro de credencial, sessão terminada etc.). #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="auth-flash-stack" aria-live="polite">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="mb-3">
+            <label for="email" class="nexo-label">E-mail</label>
+            <div class="position-relative">
+                <input type="email" name="email" id="email" class="form-control"
+                       value="{{ email_digitado|default('') }}"
+                       placeholder="voce@empresa.com.br" required autofocus autocomplete="username">
+            </div>
+        </div>
+        <div class="mb-4">
+            <label for="senha" class="nexo-label">Senha</label>
+            <div class="password-field">
+                <input type="password" name="senha" id="senha" class="form-control"
+                       placeholder="••••••••" required autocomplete="current-password">
+                <button type="button" class="password-toggle" id="toggleSenha"
+                        aria-label="Mostrar senha" title="Mostrar senha">
+                    <i class="bi bi-eye" id="toggleSenhaIcon" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <button type="submit" class="btn-nexo auth-submit w-100 justify-content-center">
+            Entrar <i class="bi bi-arrow-right"></i>
+        </button>
+    </form>
 </div>
+<p class="auth-tagline">Nexo: inteligência que impulsiona seu faturamento.</p>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* Toggle de perfil (Time Nexo / Cliente) + mostrar/ocultar senha — JS vanilla. */
+  (function () {
+    var accessInput = document.getElementById('tipo_acesso');
+    var accessOptions = document.querySelectorAll('[data-access-type]');
+    accessOptions.forEach(function (option) {
+      option.addEventListener('click', function () {
+        if (!accessInput) return;
+        accessInput.value = option.getAttribute('data-access-type');
+        accessOptions.forEach(function (item) {
+          var selected = item === option;
+          item.classList.toggle('active', selected);
+          item.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
+      });
+    });
+
+    var btn = document.getElementById('toggleSenha');
+    var inp = document.getElementById('senha');
+    var ic = document.getElementById('toggleSenhaIcon');
+    if (!btn || !inp) return;
+    btn.addEventListener('click', function () {
+      var mostrar = inp.type === 'password';
+      inp.type = mostrar ? 'text' : 'password';
+      var label = mostrar ? 'Ocultar senha' : 'Mostrar senha';
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
+      if (ic) ic.className = mostrar ? 'bi bi-eye-slash' : 'bi bi-eye';
+      inp.focus();
+    });
+  })();
+</script>
 {% endblock %}

@@ -1,0 +1,93 @@
+{# ===================================================================
+   NEXO — Macros de apresentação (somente frontend)
+   Importar com:  {% import "_macros.html" as m %}
+   Não acessam contexto (current_user/request); recebem só argumentos.
+
+   ADAPTAÇÃO NEXO/MVP:
+   - Status, planos e processamentos abaixo refletem os CHECK constraints
+     reais de models.py (Plano, Empresa, Analise, UploadRelatorio).
+   - As macros de ticket (badge_chamado, badge_prioridade) foram removidas
+     por estarem fora do escopo do PI2 (chamado_suporte/mensagem_suporte
+     são documentação no DER, sem Model nem rotas no MVP).
+   =================================================================== #}
+
+{# ---- Moeda BRL: 21600 -> 21.600,00 (separador de milhar + decimal) ---- #}
+{%- macro brl(value) -%}
+{%- set v = (value if value is not none else 0)|float -%}
+{%- set sign = '-' if v < 0 else '' -%}
+{%- set s = '%.2f'|format(v if v >= 0 else (0 - v)) -%}
+{%- set intp = s.split('.')[0] -%}
+{%- set dec = s.split('.')[1] -%}
+{%- set n = intp|length -%}
+{%- set ns = namespace(out='') -%}
+{%- for i in range(n) -%}
+  {%- set ns.out = ns.out ~ intp[i] -%}
+  {%- set pos = n - 1 - i -%}
+  {%- if pos > 0 and (pos % 3 == 0) -%}{%- set ns.out = ns.out ~ '.' -%}{%- endif -%}
+{%- endfor -%}
+{{- sign }}{{ ns.out }},{{ dec -}}
+{%- endmacro -%}
+
+{# ---- Número inteiro com milhar: 1200 -> 1.200 ---- #}
+{%- macro num(value) -%}
+{%- set v = (value if value is not none else 0)|float -%}
+{%- set intp = ('%.0f'|format(v if v >= 0 else (0 - v))) -%}
+{%- set sign = '-' if v < 0 else '' -%}
+{%- set n = intp|length -%}
+{%- set ns = namespace(out='') -%}
+{%- for i in range(n) -%}
+  {%- set ns.out = ns.out ~ intp[i] -%}
+  {%- set pos = n - 1 - i -%}
+  {%- if pos > 0 and (pos % 3 == 0) -%}{%- set ns.out = ns.out ~ '.' -%}{%- endif -%}
+{%- endfor -%}
+{{- sign }}{{ ns.out -}}
+{%- endmacro -%}
+
+{# ---- Badge: status da conta da empresa (Empresa.status_conta) ---- #}
+{%- macro badge_conta(status) -%}
+{%- if status == 'ATIVA' -%}<span class="nexo-badge b-green"><span class="dot"></span>ATIVA</span>
+{%- elif status == 'SUSPENSA' -%}<span class="nexo-badge b-amber"><span class="dot"></span>SUSPENSA</span>
+{%- elif status == 'CANCELADA' -%}<span class="nexo-badge b-red"><span class="dot"></span>CANCELADA</span>
+{%- else -%}<span class="nexo-badge b-muted">{{ status }}</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{# ---- Badge: status da análise (Analise.status_analise) ---- #}
+{%- macro badge_analise(status) -%}
+{%- if status == 'CONCLUIDO' -%}<span class="nexo-badge b-green"><span class="dot"></span>Concluído</span>
+{%- elif status == 'EM_ANALISE' -%}<span class="nexo-badge b-purple"><span class="dot"></span>Em análise</span>
+{%- elif status == 'RELATORIO_RECEBIDO' -%}<span class="nexo-badge b-info"><span class="dot"></span>Relatório recebido</span>
+{%- elif status == 'AGUARDANDO_RELATORIO' -%}<span class="nexo-badge b-amber"><span class="dot"></span>Aguardando relatório</span>
+{%- else -%}<span class="nexo-badge b-muted">{{ status }}</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{# ---- Badge: plano comercial (Plano.nome_plano) ---- #}
+{%- macro badge_plano(nome) -%}
+{%- if nome == 'OURO' -%}<span class="nexo-badge plan-badge plan-ouro">OURO</span>
+{%- elif nome == 'PRATA' -%}<span class="nexo-badge plan-badge plan-prata">PRATA</span>
+{%- elif nome == 'BRONZE' -%}<span class="nexo-badge plan-badge plan-bronze">BRONZE</span>
+{%- else -%}<span class="nexo-badge b-muted">{{ nome }}</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{# ---- Badge: status do upload (UploadRelatorio.status_processamento) ---- #}
+{%- macro badge_upload(status) -%}
+{%- if status == 'PROCESSADO' -%}<span class="nexo-badge b-green"><span class="dot"></span>PROCESSADO</span>
+{%- elif status == 'ERRO' -%}<span class="nexo-badge b-red"><span class="dot"></span>ERRO</span>
+{%- else -%}<span class="nexo-badge b-amber"><span class="dot"></span>PENDENTE</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{# ---- Nome de segmento legível: LOJA_DE_TINTAS -> Loja De Tintas ---- #}
+{%- macro segmento(nome) -%}
+{{- (nome or '—')|replace('_', ' ')|title -}}
+{%- endmacro -%}
+
+{# ---- Aviso padrão do Indicador de Pressão de Estoque (regra de negócio) ---- #}
+{%- macro nota_pressao() -%}
+<div class="nota-pressao">
+    <i class="bi bi-info-circle"></i>
+    <span>Sinalização gerencial estimada. Não representa lucro, margem, CMV nem estoque físico real.</span>
+</div>
+{%- endmacro -%}

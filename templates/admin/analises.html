@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Análises — NEXO Admin{% endblock %}
+{% block page_title %}Análises{% endblock %}
+
+{# Mini-pill de status de upload (VENDAS / COMPRAS) #}
+{% macro uppill(label, status) -%}
+{%- if status == 'PROCESSADO' -%}<span class="nexo-badge b-green" title="{{ label }}: processado">{{ label }}</span>
+{%- elif status == 'ERRO' -%}<span class="nexo-badge b-red" title="{{ label }}: erro">{{ label }}</span>
+{%- elif status == 'PENDENTE' -%}<span class="nexo-badge b-amber" title="{{ label }}: pendente">{{ label }}</span>
+{%- else -%}<span class="nexo-badge b-muted" title="{{ label }}: não enviado">{{ label }}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Análises</h1>
+        <p class="sub">Entregas de inteligência de faturamento por empresa e período.</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.analise_nova') }}" class="btn-nexo"><i class="bi bi-plus-lg"></i> Nova análise</a>
+    </div>
+</div>
+
+{% if analises %}
+{# ---------------- Filtros visuais (empresas reais) ---------------- #}
+<div class="nexo-card mb-3">
+    <div class="nexo-card-body">
+        <div class="row g-3 align-items-end">
+            <div class="col-12 col-md-5">
+                <label class="nexo-label" for="filtroEmpresa">Empresa</label>
+                <select class="form-select" id="filtroEmpresa">
+                    <option value="">Todas as empresas</option>
+                    {% for e in empresas %}
+                    <option value="{{ (e.nome_fantasia or e.razao_social)|lower }}">{{ e.nome_fantasia or e.razao_social }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-12 col-md-5">
+                <label class="nexo-label" for="filtroStatus">Status da análise</label>
+                <select class="form-select" id="filtroStatus">
+                    <option value="">Todos os status</option>
+                    <option value="AGUARDANDO_RELATORIO">Aguardando relatório</option>
+                    <option value="RELATORIO_RECEBIDO">Relatório recebido</option>
+                    <option value="EM_ANALISE">Em análise</option>
+                    <option value="CONCLUIDO">Concluído</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <button class="btn-ghost w-100 justify-content-center" id="limparFiltros" type="button"><i class="bi bi-arrow-counterclockwise"></i> Limpar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="table-wrap">
+    <div class="table-responsive-x">
+        <table class="nexo-table" id="tabelaAnalises">
+            <thead>
+                <tr>
+                    <th>Empresa</th>
+                    <th>Período</th>
+                    <th>Tipo</th>
+                    <th>Quinzena</th>
+                    <th>Status</th>
+                    <th>Uploads</th>
+                    <th>Criação</th>
+                    <th>Publicado</th>
+                    <th class="text-end">Ação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in analises %}
+                {% set up_v = (a.uploads | selectattr('tipo_relatorio', 'equalto', 'VENDAS') | list | first) %}
+                {% set up_c = (a.uploads | selectattr('tipo_relatorio', 'equalto', 'COMPRAS') | list | first) %}
+                <tr data-empresa="{{ (a.empresa.nome_fantasia or a.empresa.razao_social)|lower }}" data-status="{{ a.status_analise }}">
+                    <td class="t-strong">{{ a.empresa.nome_fantasia or a.empresa.razao_social }}</td>
+                    <td class="t-mut t-mono">{{ a.periodo_inicio.strftime('%d/%m/%Y') }} – {{ a.periodo_fim.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ 'Quinzenal' if a.tipo_analise == 'QUINZENAL' else 'Mensal' }}</td>
+                    <td class="t-mut">{{ (a.quinzena_referencia ~ 'ª') if a.quinzena_referencia else '—' }}</td>
+                    <td>{{ m.badge_analise(a.status_analise) }}</td>
+                    <td style="white-space:nowrap;">{{ uppill('V', up_v.status_processamento if up_v else None) }} {{ uppill('C', up_c.status_processamento if up_c else None) }}</td>
+                    <td class="t-mut t-mono">{{ a.data_criacao.strftime('%d/%m/%Y') }}</td>
+                    <td>{% if a.relatorio and a.relatorio.publicado %}<span class="nexo-badge b-green"><i class="bi bi-check2"></i> Sim</span>{% else %}<span class="nexo-badge b-muted">Não</span>{% endif %}</td>
+                    <td class="text-end"><a href="{{ url_for('admin.analise_upload', id_analise=a.id_analise) }}" class="btn-ghost btn-sm-x"><i class="bi bi-box-arrow-up-right"></i> Abrir</a></td>
+                </tr>
+                {% endfor %}
+                <tr id="semResultados" style="display:none;">
+                    <td colspan="9" class="text-center text-dim" style="padding:28px;">Nenhuma análise corresponde aos filtros.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="table-wrap">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-clipboard-data"></i></div>
+        <h3>Nenhuma análise cadastrada ainda.</h3>
+        <p>Crie a primeira análise para uma empresa cliente e envie os relatórios de VENDAS e COMPRAS.</p>
+        <a href="{{ url_for('admin.analise_nova') }}" class="btn-nexo mt-3"><i class="bi bi-plus-lg"></i> Nova análise</a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var fe = document.getElementById('filtroEmpresa');
+    var fs = document.getElementById('filtroStatus');
+    var tabela = document.getElementById('tabelaAnalises');
+    var limpar = document.getElementById('limparFiltros');
+    if (!tabela) return;
+    var semResultados = document.getElementById('semResultados');
+    var linhas = Array.prototype.slice.call(tabela.tBodies[0].rows).filter(function (r) { return r.id !== 'semResultados'; });
+
+    function aplicar() {
+      var qe = fe ? fe.value : '';
+      var qs = fs ? fs.value : '';
+      var vis = 0;
+      linhas.forEach(function (row) {
+        var okE = !qe || row.getAttribute('data-empresa') === qe;
+        var okS = !qs || row.getAttribute('data-status') === qs;
+        var show = okE && okS;
+        row.style.display = show ? '' : 'none';
+        if (show) vis++;
+      });
+      if (semResultados) semResultados.style.display = vis === 0 ? '' : 'none';
+    }
+    if (fe) fe.addEventListener('change', aplicar);
+    if (fs) fs.addEventListener('change', aplicar);
+    if (limpar) limpar.addEventListener('click', function () {
+      if (fe) fe.value = ''; if (fs) fs.value = ''; aplicar();
+    });
+  })();
+</script>
+{% endblock %}

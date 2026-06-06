@@ -1,103 +1,94 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 
-{% block title %}Resultado do Processamento - NEXO{% endblock %}
+{% block title %}Resultado do processamento — NEXO Admin{% endblock %}
+{% block page_title %}Resultado do processamento{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-lg-10 offset-lg-1">
-        <div class="card shadow-sm">
-            <div class="card-header bg-dark text-white">
-                <h3 class="mb-0">Resultado do Processamento — Análise #{{ analise.id_analise }}</h3>
-            </div>
-            <div class="card-body">
-                <div class="alert alert-success">
-                    KPIs consolidados e persistidos em <code>indicador_analise</code>.
-                    A análise permanece em <strong>{{ analise.status_analise }}</strong> —
-                    a conclusão ocorre apenas na publicação da devolutiva estratégica.
-                </div>
+{% set k = resultado.kpis %}
 
-                <h4 class="mt-4 text-secondary">Indicadores oficiais (tabela <code>indicador_analise</code>)</h4>
-                <table class="table table-bordered table-striped mt-2">
-                    <tbody>
-                        <tr>
-                            <th style="width:40%">Faturamento total</th>
-                            <td><strong>R$ {{ "%.2f"|format(resultado.kpis.faturamento_total) }}</strong></td>
-                        </tr>
-                        <tr>
-                            <th>Total comprado (notas fiscais)</th>
-                            <td>R$ {{ "%.2f"|format(resultado.kpis.total_comprado) }}</td>
-                        </tr>
-                        <tr>
-                            <th>Indicador de Pressão de Estoque</th>
-                            <td>
-                                <strong>R$ {{ "%.2f"|format(resultado.kpis.saldo_estimado_compras_vendas) }}</strong>
-                                <br>
-                                <small class="text-muted">
-                                    Saldo estimado entre compras e vendas (total comprado − faturamento).
-                                    Representa o descasamento financeiro/operacional do período —
-                                    não é lucro, margem, CMV nem estoque físico real.
-                                </small>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th>Produto mais vendido (quantidade)</th>
-                            <td>{{ resultado.kpis.produto_mais_vendido_nome }}
-                                ({{ "%.0f"|format(resultado.kpis.produto_mais_vendido_quantidade) }} un)</td>
-                        </tr>
-                        <tr>
-                            <th>Produto de maior faturamento</th>
-                            <td>{{ resultado.kpis.produto_maior_faturamento_nome }}
-                                (R$ {{ "%.2f"|format(resultado.kpis.produto_maior_faturamento_valor) }})</td>
-                        </tr>
-                        <tr>
-                            <th>Produto com maior saldo estimado parado</th>
-                            <td>
-                                {% if resultado.kpis.produto_maior_saldo_parado_nome %}
-                                    {{ resultado.kpis.produto_maior_saldo_parado_nome }}
-                                    ({{ "%.0f"|format(resultado.kpis.saldo_estimado_parado) }} un em saldo)
-                                {% else %}
-                                    <span class="text-muted">Não calculado — ver limitação técnica abaixo.</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+<div class="page-head">
+    <div>
+        <h1>Resultado do processamento</h1>
+        <p class="sub">Análise #{{ analise.id_analise }} · {{ analise.empresa.nome_fantasia or analise.empresa.razao_social }}</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.analise_upload', id_analise=analise.id_analise) }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar à análise</a>
+    </div>
+</div>
 
-                {% if resultado.telemetria.produtos_estoque_pdv_negativo is defined %}
-                <h4 class="mt-4 text-secondary">Telemetria (em memória, não persistida)</h4>
-                <div class="row">
-                    <div class="col-md-6">
-                        <div class="card p-3 border-warning">
-                            <h5 class="mb-2">Qualidade do registro de estoque no PDV</h5>
-                            <p class="mb-1">
-                                Produtos com saldo de estoque negativo informado pelo PDV:
-                                <strong>{{ resultado.telemetria.produtos_estoque_pdv_negativo }}</strong>
-                            </p>
-                            <p class="mb-0">
-                                Taxa de inconsistência:
-                                <strong>{{ "%.1f"|format(resultado.telemetria.taxa_estoque_pdv_negativo * 100) }}%</strong>
-                            </p>
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
+<div class="alert alert-success">
+    <i class="bi bi-check2-circle"></i>
+    Indicadores consolidados e persistidos. A análise permanece em <strong>{{ analise.status_analise }}</strong> — a conclusão ocorre apenas na publicação da devolutiva estratégica.
+</div>
 
-                {% if resultado.alertas %}
-                <h4 class="mt-4 text-warning">Alertas e limitações</h4>
-                <div class="alert alert-warning">
-                    <ul class="mb-0">
-                        {% for alerta in resultado.alertas %}
-                        <li>{{ alerta }}</li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% endif %}
+{# ---------------- KPIs oficiais ---------------- #}
+<div class="row g-3 mb-3">
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Faturamento total do período</span><span class="kpi-icon is-green"><i class="bi bi-graph-up-arrow"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(k.faturamento_total) }}</div></div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Total comprado no período</span><span class="kpi-icon is-info"><i class="bi bi-bag-check"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(k.total_comprado) }}</div></div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Indicador de Pressão de Estoque</span><span class="kpi-icon is-amber"><i class="bi bi-box-seam"></i></span></div><div class="kpi-value"><small>R$</small> {{ m.brl(k.saldo_estimado_compras_vendas) }}</div></div>
+    </div>
+</div>
+<div class="mb-4">{{ m.nota_pressao() }}</div>
 
-                <div class="mt-4">
-                    <a href="{{ url_for('admin.dashboard') }}" class="btn btn-secondary">Voltar ao Dashboard</a>
-                </div>
-            </div>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Produto mais vendido</span><span class="kpi-icon"><i class="bi bi-trophy"></i></span></div><div class="fw-bold mt-1">{{ k.produto_mais_vendido_nome or '—' }}</div><div class="kpi-foot">{{ m.num(k.produto_mais_vendido_quantidade) }} un</div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Produto com maior faturamento</span><span class="kpi-icon"><i class="bi bi-cash-stack"></i></span></div><div class="fw-bold mt-1">{{ k.produto_maior_faturamento_nome or '—' }}</div><div class="kpi-foot">R$ {{ m.brl(k.produto_maior_faturamento_valor) }}</div></div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Maior saldo estimado parado</span><span class="kpi-icon"><i class="bi bi-archive"></i></span></div>
+            {% if k.produto_maior_saldo_parado_nome %}
+                <div class="fw-bold mt-1">{{ k.produto_maior_saldo_parado_nome }}</div><div class="kpi-foot">{{ m.num(k.saldo_estimado_parado) }} un em saldo</div>
+            {% else %}
+                <div class="fw-bold mt-1 text-dim">Não calculado</div><div class="kpi-foot">compras sem produto + quantidade</div>
+            {% endif %}
         </div>
     </div>
+</div>
+
+{# ---------------- Qualidade dos dados (telemetria em memória, não persistida) ---------------- #}
+{% if resultado.telemetria %}
+<div class="nexo-card mb-4">
+    <div class="nexo-card-head"><div><h2>Qualidade dos dados</h2><p class="sub">Leitura em memória — não persistida</p></div></div>
+    <div class="nexo-card-body">
+        <div class="row g-3">
+            {% if resultado.telemetria.linhas_vendas is defined %}
+            <div class="col-6 col-md-3"><div class="kpi-label">Linhas de vendas</div><div class="fw-num">{{ m.num(resultado.telemetria.linhas_vendas) }}</div></div>
+            {% endif %}
+            {% if resultado.telemetria.linhas_compras is defined %}
+            <div class="col-6 col-md-3"><div class="kpi-label">Linhas de compras</div><div class="fw-num">{{ m.num(resultado.telemetria.linhas_compras) }}</div></div>
+            {% endif %}
+            {% if resultado.telemetria.produtos_estoque_pdv_negativo is defined %}
+            <div class="col-6 col-md-3"><div class="kpi-label">Saldo PDV negativo</div><div class="fw-num">{{ m.num(resultado.telemetria.produtos_estoque_pdv_negativo) }}</div></div>
+            <div class="col-6 col-md-3"><div class="kpi-label">Taxa de inconsistência</div><div class="fw-num">{{ '%.1f'|format(resultado.telemetria.taxa_estoque_pdv_negativo * 100) }}%</div></div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ---------------- Observações do processamento (alertas de limitação técnica e telemetria) ---------------- #}
+{% if resultado.alertas %}
+<div class="alert alert-warning">
+    <strong><i class="bi bi-exclamation-triangle"></i> Observações do processamento</strong>
+    <ul class="mb-0 mt-2">
+        {% for alerta in resultado.alertas %}
+        <li>{{ alerta }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<div class="d-flex justify-content-end gap-2">
+    <a href="{{ url_for('admin.analises') }}" class="btn-ghost">Voltar às análises</a>
+    <a href="{{ url_for('admin.analise_relatorio', id_analise=analise.id_analise) }}" class="btn-nexo"><i class="bi bi-pencil-square"></i> Editor do relatório estratégico</a>
 </div>
 {% endblock %}

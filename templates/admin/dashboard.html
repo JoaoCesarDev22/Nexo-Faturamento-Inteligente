@@ -1,29 +1,193 @@
 {% extends "base.html" %}
+{% import "_macros.html" as m %}
 
-{% block title %}Painel Admin - NEXO{% endblock %}
+{% block title %}Dashboard — NEXO Admin{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-12">
-        <h1 class="h3 mb-4">Painel do Administrador</h1>
+<div class="page-head">
+    <div>
+        <h1>Visão geral</h1>
+        <p class="sub">Painel administrativo da carteira de empresas clientes NEXO.</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.empresa_nova') }}" class="btn-nexo"><i class="bi bi-plus-lg"></i> Nova empresa</a>
+    </div>
+</div>
 
-        <div class="alert alert-info">
-            <strong>Semana 1 — esqueleto.</strong>
-            Aqui virão: lista de empresas cadastradas, análises em andamento,
-            atalhos para upload e processamento.
+{# ---------------- KPI tiles (dados reais da rota) ---------------- #}
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-tile">
+            <div class="kpi-top">
+                <span class="kpi-label">Empresas ativas</span>
+                <span class="kpi-icon is-green"><i class="bi bi-buildings"></i></span>
+            </div>
+            <div class="kpi-value">{{ m.num(stats.ativas) }}</div>
+            <div class="kpi-foot">de {{ m.num(stats.total) }} no total</div>
         </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-tile">
+            <div class="kpi-top">
+                <span class="kpi-label">Empresas suspensas</span>
+                <span class="kpi-icon is-amber"><i class="bi bi-pause-circle"></i></span>
+            </div>
+            <div class="kpi-value">{{ m.num(stats.suspensas) }}</div>
+            <div class="kpi-foot">entregas novas bloqueadas</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-tile">
+            <div class="kpi-top">
+                <span class="kpi-label">Empresas canceladas</span>
+                <span class="kpi-icon is-red"><i class="bi bi-x-circle"></i></span>
+            </div>
+            <div class="kpi-value">{{ m.num(stats.canceladas) }}</div>
+            <div class="kpi-foot">contratos encerrados</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="kpi-tile">
+            <div class="kpi-top">
+                <span class="kpi-label">Receita estimada mensal</span>
+                <span class="kpi-icon"><i class="bi bi-cash-coin"></i></span>
+            </div>
+            <div class="kpi-value"><small>R$</small> {{ m.brl(stats.receita_estimada) }}</div>
+            <div class="kpi-foot">soma dos planos das empresas ativas</div>
+        </div>
+    </div>
+</div>
 
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Próximas tarefas do PI2</h5>
-                <ul class="mb-0">
-                    <li>Semana 1: estrutura, banco, login (atual)</li>
-                    <li>Semana 2: ETL Python + cálculo de KPIs</li>
-                    <li>Semana 3: Frontend Plotly.js + integração</li>
-                    <li>Semana 4: Polimento, testes, vídeo backup</li>
-                </ul>
+{# ---------------- Gráficos ---------------- #}
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-4">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head">
+                <div><h2>Empresas por status</h2><p class="sub">Distribuição da carteira</p></div>
+            </div>
+            <div class="nexo-card-body">
+                {% if stats.total > 0 %}
+                <div id="chartStatus" class="chart-box sm"></div>
+                {% else %}
+                <div class="empty-state" style="padding:28px;">
+                    <div class="es-icon"><i class="bi bi-buildings"></i></div>
+                    <p>Nenhuma empresa cadastrada ainda.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head">
+                <div><h2>Empresas por plano</h2><p class="sub">Bronze · Prata · Ouro</p></div>
+            </div>
+            <div class="nexo-card-body">
+                {% if stats.total > 0 %}
+                <div id="chartPlano" class="chart-box sm"></div>
+                {% else %}
+                <div class="empty-state" style="padding:28px;">
+                    <div class="es-icon"><i class="bi bi-bar-chart"></i></div>
+                    <p>Sem dados de planos — cadastre empresas para ver a distribuição.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head">
+                <div><h2>Análises por status</h2><p class="sub">Fluxo operacional das entregas</p></div>
+            </div>
+            <div class="nexo-card-body">
+                {% if analises %}
+                <div id="chartAnalisesStatus" class="chart-box sm"></div>
+                {% else %}
+                <div class="empty-state" style="padding:28px;">
+                    <div class="es-icon"><i class="bi bi-clipboard-data"></i></div>
+                    <p>Sem análises cadastradas para acompanhar.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
 </div>
+
+{# ---------------- Últimas análises (dados reais) ---------------- #}
+<div class="table-wrap">
+    <div class="nexo-card-head">
+        <div><h2>Últimas análises</h2><p class="sub">Acompanhamento das entregas recentes</p></div>
+        <a href="{{ url_for('admin.analises') }}" class="btn-ghost btn-sm-x"><i class="bi bi-clipboard-data"></i> Ver todas</a>
+    </div>
+    {% if analises %}
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead>
+                <tr>
+                    <th>Empresa</th>
+                    <th>Período</th>
+                    <th>Tipo</th>
+                    <th>Status</th>
+                    <th class="text-end">Ação</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in analises[:6] %}
+                <tr>
+                    <td class="t-strong">{{ a.empresa.nome_fantasia or a.empresa.razao_social }}</td>
+                    <td class="t-mut t-mono">{{ a.periodo_inicio.strftime('%d/%m/%Y') }} – {{ a.periodo_fim.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ 'Quinzenal' if a.tipo_analise == 'QUINZENAL' else 'Mensal' }}</td>
+                    <td>{{ m.badge_analise(a.status_analise) }}</td>
+                    <td class="text-end">
+                        <a href="{{ url_for('admin.analise_upload', id_analise=a.id_analise) }}" class="btn-ghost btn-sm-x"><i class="bi bi-box-arrow-up-right"></i> Abrir</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-clipboard-data"></i></div>
+        <h3>Nenhuma análise cadastrada ainda.</h3>
+        <p>Cadastre uma empresa e crie a primeira análise para acompanhar as entregas aqui.</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if stats.total > 0 %}
+<script>
+  const dashboardData = {{ dashboard_data|tojson }};
+
+  NEXO.staticPlot('chartStatus', [{
+    type: 'pie', hole: 0.62,
+    labels: dashboardData.empresas_status.labels,
+    values: dashboardData.empresas_status.values,
+    marker: { colors: ['#22c55e', '#f59e0b', '#ef4444'], line: { color: '#13131d', width: 2 } },
+    textinfo: 'label+value', textfont: { color: '#e8e9f0', size: 12 },
+    hoverinfo: 'label+value+percent'
+  }], { margin: { l: 10, r: 10, t: 10, b: 10 }, height: 240 });
+
+  NEXO.staticPlot('chartPlano', [{
+    type: 'bar',
+    x: dashboardData.empresas_plano.labels,
+    y: dashboardData.empresas_plano.values,
+    marker: { color: ['#e0a878', '#cbd5e1', '#f5d76e'] },
+    width: 0.5,
+    hovertemplate: '%{x}: %{y} empresa(s)<extra></extra>'
+  }], { yaxis: { dtick: 1, rangemode: 'tozero' }, height: 240 });
+
+  NEXO.staticPlot('chartAnalisesStatus', [{
+    type: 'bar',
+    orientation: 'h',
+    x: dashboardData.analises_status.values,
+    y: dashboardData.analises_status.labels,
+    marker: { color: ['#f59e0b', '#38bdf8', '#a855f7', '#22c55e'] },
+    hovertemplate: '%{y}: %{x} análise(s)<extra></extra>'
+  }], { margin: { l: 128, r: 16, t: 14, b: 34 }, xaxis: { dtick: 1, rangemode: 'tozero' }, height: 240 });
+</script>
+{% endif %}
 {% endblock %}

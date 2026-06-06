@@ -1,57 +1,51 @@
-"""
-NEXO - Blueprint de autenticação
-=================================
-Rotas: /auth/login, /auth/logout
-
-Estratégia de senha: werkzeug.security (PBKDF2 com SHA-256 e salt).
-Padrão do Flask, suficiente para o MVP. Alternativa: bcrypt/argon2
-(mais lento, mais resistente) em produção real pós-PI3.
-"""
-
-from datetime import datetime
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+from flask import Blueprint, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import select
 
 from extensions import db
 from models import Usuario
 
+# Criação do Blueprint de Autenticação
 auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    # Se já está logado, manda direto pra raiz que decide o destino.
+    """Gere o ecrã e a lógica de login do utilizador."""
+    # Se já estiver autenticado, redireciona para a página inicial (que faz o devido redirecionamento)
     if current_user.is_authenticated:
         return redirect(url_for("index"))
 
     if request.method == "POST":
-        email = request.form.get("email", "").strip().lower()
+        email = request.form.get("email", "").strip()
         senha = request.form.get("senha", "")
 
-        if not email or not senha:
-            flash("Informe e-mail e senha.", "warning")
-            return render_template("auth/login.html"), 400
-
+        # Procura o utilizador no banco de dados pelo e-mail
         usuario = db.session.execute(
             select(Usuario).where(Usuario.email == email)
         ).scalar_one_or_none()
 
-        # Mensagem genérica para não vazar se o e-mail existe ou não.
-        if not usuario or not usuario.check_senha(senha):
-            flash("E-mail ou senha inválidos.", "danger")
-            return render_template("auth/login.html"), 401
+        # Valida o utilizador e a senha (usando o método check_senha definido no Model)
+        if usuario and usuario.check_senha(senha):
+            if not usuario.ativo:
+                flash("Esta conta está desativada. Contacte o administrador.", "danger")
+                return render_template("auth/login.html")
 
-        if not usuario.ativo:
-            flash("Conta desativada. Contate o administrador.", "warning")
-            return render_template("auth/login.html"), 403
+            # Efetua o login na sessão
+            login_user(usuario)
+            
+            # Trata o redirecionamento caso o utilizador tenha tentado aceder a uma página protegida antes
+            next_page = request.args.get("next")
+            if next_page and next_page.startswith("/"):
+                return redirect(next_page)
 
-        login_user(usuario)
-        usuario.ultimo_acesso = datetime.utcnow()
-        db.session.commit()
-
-        flash(f"Bem-vindo, {usuario.nome}!", "success")
-        return redirect(url_for("index"))
+            # Redirecionamento padrão com base no perfil (Role)
+            if usuario.is_admin:
+                return redirect(url_for("admin.dashboard"))
+            return redirect(url_for("cliente.dashboard"))
+        
+        # Mensagem genérica por motivos de segurança (não revelar se o erro foi o e-mail ou a senha)
+        flash("E-mail ou senha incorretos.", "danger")
 
     return render_template("auth/login.html")
 
@@ -59,6 +53,7 @@ def login():
 @auth_bp.route("/logout")
 @login_required
 def logout():
+    """Termina a sessão do utilizador."""
     logout_user()
-    flash("Você saiu da sua conta.", "info")
+    flash("Sessão terminada com sucesso.", "success")
     return redirect(url_for("auth.login"))

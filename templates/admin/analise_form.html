@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Nova análise — NEXO Admin{% endblock %}
+{% block page_title %}Nova análise{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Nova análise</h1>
+        <p class="sub">Abertura de uma nova análise de faturamento para uma empresa.</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.analises') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+</div>
+
+{% if not empresas %}
+<div class="nexo-card">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-buildings"></i></div>
+        <h3>Nenhuma empresa cadastrada ainda.</h3>
+        <p>Cadastre uma empresa cliente antes de criar uma análise.</p>
+        <a href="{{ url_for('admin.empresa_nova') }}" class="btn-nexo mt-3"><i class="bi bi-plus-lg"></i> Nova empresa</a>
+    </div>
+</div>
+{% else %}
+<form method="POST" action="{{ url_for('admin.analise_nova') }}" class="relatorio-doc" style="max-width:880px;">
+    <div class="nexo-card mb-4">
+        <div class="nexo-card-head">
+            <div>
+                <h2><i class="bi bi-clipboard-plus text-purple"></i> Dados da análise</h2>
+                <p class="sub">Período de referência e tipo de entrega</p>
+            </div>
+        </div>
+        <div class="nexo-card-body">
+
+            <div class="alert alert-warning d-none" id="alertaConta">
+                <i class="bi bi-exclamation-triangle"></i>
+                <span id="alertaContaTexto"></span>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-12">
+                    <label class="nexo-label" for="id_empresa">Empresa <span class="req">*</span></label>
+                    <select class="form-select" id="id_empresa" name="id_empresa" required>
+                        <option value="" selected disabled>Selecione a empresa…</option>
+                        {% for e in empresas %}
+                        <option value="{{ e.id_empresa }}"
+                                data-plano="{{ e.plano_atual.nome_plano if e.plano_atual else '' }}"
+                                data-status="{{ e.status_conta }}">
+                            {{ e.nome_fantasia or e.razao_social }} — {{ e.plano_atual.nome_plano if e.plano_atual else '—' }} ({{ e.status_conta }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <p class="field-hint mt-2 mb-0"><i class="bi bi-info-circle"></i> Análises <strong>QUINZENAIS</strong> ficam disponíveis apenas para empresas do plano <strong>OURO</strong>. Bronze e Prata: apenas mensal.</p>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="nexo-label" for="tipo_analise">Tipo de análise <span class="req">*</span></label>
+                    <select class="form-select" id="tipo_analise" name="tipo_analise" required>
+                        <option value="MENSAL" selected>MENSAL</option>
+                        <option value="QUINZENAL" id="optQuinzenal">QUINZENAL</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-6" id="campoQuinzena" style="display:none;">
+                    <label class="nexo-label" for="quinzena_referencia">Quinzena <span class="req">*</span></label>
+                    <select class="form-select" id="quinzena_referencia" name="quinzena_referencia">
+                        <option value="1">1ª quinzena (dias 1–15)</option>
+                        <option value="2">2ª quinzena (dias 16–fim)</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-6">
+                    <label class="nexo-label" for="periodo_inicio">Período — início <span class="req">*</span></label>
+                    <input type="date" class="form-control" id="periodo_inicio" name="periodo_inicio" required>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="nexo-label" for="periodo_fim">Período — fim <span class="req">*</span></label>
+                    <input type="date" class="form-control" id="periodo_fim" name="periodo_fim" required>
+                </div>
+
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="mes_referencia">Mês de referência <span class="req">*</span></label>
+                    <select class="form-select" id="mes_referencia" name="mes_referencia" required>
+                        {% set meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'] %}
+                        {% for nome in meses %}
+                        <option value="{{ loop.index }}">{{ '%02d'|format(loop.index) }} — {{ nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="ano_referencia">Ano de referência <span class="req">*</span></label>
+                    <input type="number" class="form-control" id="ano_referencia" name="ano_referencia" min="2020" max="2099" placeholder="2026" required>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-end">
+        <a href="{{ url_for('admin.analises') }}" class="btn-ghost">Cancelar</a>
+        <button type="submit" class="btn-nexo"><i class="bi bi-check2-circle"></i> Criar análise</button>
+    </div>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  (function () {
+    var sel = document.getElementById('id_empresa');
+    var tipo = document.getElementById('tipo_analise');
+    var optQ = document.getElementById('optQuinzenal');
+    var campoQ = document.getElementById('campoQuinzena');
+    var alerta = document.getElementById('alertaConta');
+    var alertaTxt = document.getElementById('alertaContaTexto');
+    if (!sel || !tipo) return;
+
+    function aplicarEmpresa() {
+      var opt = sel.options[sel.selectedIndex];
+      var plano = opt ? (opt.getAttribute('data-plano') || '') : '';
+      var status = opt ? (opt.getAttribute('data-status') || '') : '';
+
+      var ehOuro = plano === 'OURO';
+      optQ.disabled = !ehOuro;
+      if (!ehOuro && tipo.value === 'QUINZENAL') { tipo.value = 'MENSAL'; }
+      aplicarTipo();
+
+      if (status === 'SUSPENSA' || status === 'CANCELADA') {
+        alerta.classList.remove('d-none');
+        alertaTxt.textContent = status === 'SUSPENSA'
+          ? 'Esta empresa está SUSPENSA — novas entregas ficam bloqueadas até a regularização.'
+          : 'Esta empresa está CANCELADA — o contrato foi encerrado e não recebe novas análises.';
+      } else {
+        alerta.classList.add('d-none');
+      }
+    }
+    function aplicarTipo() {
+      campoQ.style.display = (tipo.value === 'QUINZENAL') ? '' : 'none';
+    }
+    sel.addEventListener('change', aplicarEmpresa);
+    tipo.addEventListener('change', aplicarTipo);
+    aplicarTipo();
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Empresas — NEXO Admin{% endblock %}
+{% block page_title %}Empresas{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Empresas Clientes</h1>
+        <p class="sub">Carteira de lojas atendidas pela consultoria NEXO.</p>
+    </div>
+    <div class="page-head-actions">
+        {% if empresas %}
+        <div class="search-box">
+            <i class="bi bi-search"></i>
+            <input type="text" id="buscaEmpresa" class="form-control" placeholder="Buscar por nome, CNPJ, plano…" autocomplete="off">
+        </div>
+        {% endif %}
+        <a href="{{ url_for('admin.empresa_nova') }}" class="btn-nexo"><i class="bi bi-plus-lg"></i> Nova empresa</a>
+    </div>
+</div>
+
+<div class="table-wrap">
+    {% if empresas %}
+    <div class="table-responsive-x">
+        <table class="nexo-table" id="tabelaEmpresas">
+            <thead>
+                <tr>
+                    <th>Razão social</th>
+                    <th>Nome fantasia</th>
+                    <th>CNPJ</th>
+                    <th>Segmento</th>
+                    <th>Plano</th>
+                    <th>Status</th>
+                    <th>E-mail de contato</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in empresas %}
+                <tr>
+                    <td class="t-strong">{{ e.razao_social }}</td>
+                    <td class="t-mut">{{ e.nome_fantasia or '—' }}</td>
+                    <td class="t-mono t-mut">{{ e.cnpj }}</td>
+                    <td>{{ m.segmento(e.segmento.nome_segmento if e.segmento else None) }}</td>
+                    <td>{{ m.badge_plano(e.plano_atual.nome_plano if e.plano_atual else '—') }}</td>
+                    <td>{{ m.badge_conta(e.status_conta) }}</td>
+                    <td class="t-mut">{{ e.email_contato }}</td>
+                    <td class="text-end t-mut" style="white-space:nowrap;">
+                        <a href="{{ url_for('admin.analises') }}" class="btn-ghost btn-sm-x"><i class="bi bi-clipboard-data"></i> Análises</a>
+                        <a href="{{ url_for('admin.empresa_editar', id_empresa=e.id_empresa) }}" class="btn-ghost btn-sm-x" title="Editar empresa"><i class="bi bi-pencil"></i></a>
+                    </td>
+                </tr>
+                {% endfor %}
+                <tr id="semResultados" style="display:none;">
+                    <td colspan="8" class="text-center text-dim" style="padding:28px;">Nenhuma empresa encontrada para a busca.</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-buildings"></i></div>
+        <h3>Nenhuma empresa cadastrada ainda.</h3>
+        <p>Cadastre a primeira empresa cliente para começar a gerar análises de faturamento.</p>
+        <a href="{{ url_for('admin.empresa_nova') }}" class="btn-nexo mt-3"><i class="bi bi-plus-lg"></i> Nova empresa</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* Busca client-side (vanilla, sem AJAX): filtra linhas pelo texto. */
+  (function () {
+    var input = document.getElementById('buscaEmpresa');
+    var tabela = document.getElementById('tabelaEmpresas');
+    if (!input || !tabela) return;
+    var semResultados = document.getElementById('semResultados');
+    var linhas = Array.prototype.slice.call(tabela.tBodies[0].rows).filter(function (r) {
+      return r.id !== 'semResultados';
+    });
+    input.addEventListener('input', function () {
+      var q = input.value.trim().toLowerCase();
+      var visiveis = 0;
+      linhas.forEach(function (row) {
+        var match = row.textContent.toLowerCase().indexOf(q) !== -1;
+        row.style.display = match ? '' : 'none';
+        if (match) visiveis++;
+      });
+      if (semResultados) semResultados.style.display = visiveis === 0 ? '' : 'none';
+    });
+  })();
+</script>
+{% endblock %}

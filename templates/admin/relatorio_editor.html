@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Editor do relatório — NEXO Admin{% endblock %}
+{% block page_title %}Relatório estratégico{% endblock %}
+
+{% block content %}
+{% set rel = analise.relatorio %}
+{% set emp = analise.empresa.nome_fantasia or analise.empresa.razao_social %}
+{% set publicado = rel.publicado if rel else false %}
+
+<div class="page-head">
+    <div>
+        <h1>Editor do relatório estratégico</h1>
+        <p class="sub">{{ emp }} · {{ analise.periodo_inicio.strftime('%d/%m/%Y') }} – {{ analise.periodo_fim.strftime('%d/%m/%Y') }}
+            {% if publicado %}<span class="nexo-badge b-green ms-2"><i class="bi bi-broadcast"></i> Publicado</span>{% else %}<span class="nexo-badge b-muted ms-2">Rascunho</span>{% endif %}
+        </p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.analise_upload', id_analise=analise.id_analise) }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+</div>
+
+<form method="POST" action="{{ url_for('admin.analise_relatorio', id_analise=analise.id_analise) }}" class="relatorio-doc">
+    <div class="nexo-card mb-4">
+        <div class="nexo-card-body">
+            <div class="mb-3">
+                <label class="nexo-label" for="titulo">Título <span class="req">*</span></label>
+                <input type="text" class="form-control" id="titulo" name="titulo" value="{{ rel.titulo if rel else '' }}" placeholder="Ex.: Análise de Faturamento — período de referência" required>
+            </div>
+            <div class="mb-3">
+                <label class="nexo-label" for="resumo_executivo">Resumo executivo</label>
+                <textarea class="form-control" id="resumo_executivo" name="resumo_executivo" rows="3" placeholder="Síntese do período em poucas linhas…">{{ rel.resumo_executivo if (rel and rel.resumo_executivo) else '' }}</textarea>
+            </div>
+            <div class="row g-3">
+                <div class="col-12 col-lg-6">
+                    <label class="nexo-label" for="pontos_positivos"><i class="bi bi-hand-thumbs-up text-green"></i> Pontos positivos</label>
+                    <textarea class="form-control" id="pontos_positivos" name="pontos_positivos" rows="5" placeholder="Destaques do período…">{{ rel.pontos_positivos if (rel and rel.pontos_positivos) else '' }}</textarea>
+                </div>
+                <div class="col-12 col-lg-6">
+                    <label class="nexo-label" for="pontos_de_alerta"><i class="bi bi-exclamation-triangle text-amber"></i> Pontos de alerta</label>
+                    <textarea class="form-control" id="pontos_de_alerta" name="pontos_de_alerta" rows="5" placeholder="Riscos e atenções…">{{ rel.pontos_de_alerta if (rel and rel.pontos_de_alerta) else '' }}</textarea>
+                </div>
+            </div>
+            <div class="mt-3">
+                <label class="nexo-label" for="recomendacoes"><i class="bi bi-lightbulb text-purple"></i> Recomendações</label>
+                <textarea class="form-control" id="recomendacoes" name="recomendacoes" rows="4" placeholder="Ações sugeridas para o próximo ciclo…">{{ rel.recomendacoes if (rel and rel.recomendacoes) else '' }}</textarea>
+            </div>
+            <div class="mt-3">
+                <label class="nexo-label" for="conclusao_estrategica"><i class="bi bi-flag text-purple"></i> Conclusão estratégica <span class="req">*</span></label>
+                <textarea class="form-control" id="conclusao_estrategica" name="conclusao_estrategica" rows="4" placeholder="A mensagem central entregue ao cliente (obrigatória)…" required>{{ rel.conclusao_estrategica if (rel and rel.conclusao_estrategica) else '' }}</textarea>
+                <p class="field-hint mt-2 mb-0">Para <strong>publicar</strong>, preencha também resumo, pontos positivos, pontos de alerta e recomendações.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+        <button type="submit" name="acao" value="rascunho" class="btn-ghost"><i class="bi bi-save"></i> Salvar rascunho</button>
+        {% if publicado %}
+        <button type="submit" name="acao" value="despublicar" class="btn-ghost is-danger"><i class="bi bi-eye-slash"></i> Despublicar</button>
+        {% else %}
+        <button type="submit" name="acao" value="publicar" class="btn-nexo"><i class="bi bi-broadcast"></i> Publicar para cliente</button>
+        {% endif %}
+    </div>
+</form>
+{% endblock %}

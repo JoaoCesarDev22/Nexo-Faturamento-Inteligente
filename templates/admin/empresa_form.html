@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% set ed = empresa is not none %}
+{% set sc = empresa.status_conta if ed else 'ATIVA' %}
+{% set seg_sel = empresa.id_segmento if ed else None %}
+{% set plano_sel = empresa.id_plano_atual if ed else None %}
+
+{% block title %}{{ 'Editar empresa' if ed else 'Nova empresa' }} — NEXO Admin{% endblock %}
+{% block page_title %}{{ 'Editar empresa' if ed else 'Nova empresa' }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>{{ 'Editar empresa' if ed else 'Nova empresa' }}</h1>
+        <p class="sub">{{ 'Atualização dos dados de uma loja cliente.' if ed else 'Cadastro de uma loja cliente e do seu usuário de acesso.' }}</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.empresas') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+</div>
+
+<form method="POST"
+      action="{{ url_for('admin.empresa_editar', id_empresa=empresa.id_empresa) if ed else url_for('admin.empresa_nova') }}"
+      class="relatorio-doc" style="max-width:980px;">
+    <div class="nexo-card mb-4">
+        <div class="nexo-card-head">
+            <div>
+                <h2><i class="bi bi-buildings text-purple"></i> Dados da empresa</h2>
+                <p class="sub">Informações cadastrais e contratuais</p>
+            </div>
+        </div>
+        <div class="nexo-card-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="cnpj">CNPJ <span class="req">*</span></label>
+                    {% if ed %}
+                    <input type="text" class="form-control" id="cnpj" name="cnpj" value="{{ empresa.cnpj }}" readonly>
+                    <p class="field-hint mt-1 mb-0"><i class="bi bi-lock"></i> O CNPJ não pode ser alterado.</p>
+                    {% else %}
+                    <input type="text" class="form-control" id="cnpj" name="cnpj" placeholder="00.000.000/0000-00" required>
+                    {% endif %}
+                </div>
+                <div class="col-12 col-md-8">
+                    <label class="nexo-label" for="razao_social">Razão social <span class="req">*</span></label>
+                    <input type="text" class="form-control" id="razao_social" name="razao_social"
+                           value="{{ empresa.razao_social if ed else '' }}" placeholder="Razão social da empresa" required>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="nexo-label" for="nome_fantasia">Nome fantasia</label>
+                    <input type="text" class="form-control" id="nome_fantasia" name="nome_fantasia"
+                           value="{{ empresa.nome_fantasia if (ed and empresa.nome_fantasia) else '' }}" placeholder="Nome fantasia">
+                </div>
+                <div class="col-12 col-md-6">
+                    <label class="nexo-label" for="email_contato">E-mail de contato <span class="req">*</span></label>
+                    <input type="email" class="form-control" id="email_contato" name="email_contato"
+                           value="{{ empresa.email_contato if ed else '' }}" placeholder="contato@empresa.com.br" required>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="telefone_contato">Telefone de contato</label>
+                    <input type="text" class="form-control" id="telefone_contato" name="telefone_contato"
+                           value="{{ empresa.telefone_contato if (ed and empresa.telefone_contato) else '' }}" placeholder="(00) 00000-0000">
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="data_contratacao">Data de contratação <span class="req">*</span></label>
+                    <input type="date" class="form-control" id="data_contratacao" name="data_contratacao"
+                           value="{{ empresa.data_contratacao.isoformat() if (ed and empresa.data_contratacao) else '' }}" required>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="faturamento_base_mensal">Faturamento base mensal</label>
+                    <div class="input-group">
+                        <span class="input-group-text">R$</span>
+                        <input type="number" step="0.01" min="0" class="form-control" id="faturamento_base_mensal" name="faturamento_base_mensal"
+                               value="{{ empresa.faturamento_base_mensal if (ed and empresa.faturamento_base_mensal is not none) else '' }}" placeholder="0,00">
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="id_segmento">Segmento <span class="req">*</span></label>
+                    <select class="form-select" id="id_segmento" name="id_segmento" required>
+                        <option value="" {{ 'selected' if not ed }} disabled>Selecione…</option>
+                        {% for seg in segmentos %}
+                        <option value="{{ seg.id_segmento }}" {{ 'selected' if seg.id_segmento == seg_sel }}>{{ m.segmento(seg.nome_segmento) }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="id_plano_atual">Plano atual <span class="req">*</span></label>
+                    <select class="form-select" id="id_plano_atual" name="id_plano_atual" required>
+                        <option value="" {{ 'selected' if not ed }} disabled>Selecione…</option>
+                        {% for p in planos %}
+                        <option value="{{ p.id_plano }}" {{ 'selected' if p.id_plano == plano_sel }}>{{ p.nome_plano }} — R$ {{ m.brl(p.valor_mensal) }}/mês</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="status_conta">Status da conta <span class="req">*</span></label>
+                    <select class="form-select" id="status_conta" name="status_conta" required>
+                        <option value="ATIVA" {{ 'selected' if sc == 'ATIVA' }}>ATIVA</option>
+                        <option value="SUSPENSA" {{ 'selected' if sc == 'SUSPENSA' }}>SUSPENSA</option>
+                        <option value="CANCELADA" {{ 'selected' if sc == 'CANCELADA' }}>CANCELADA</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if not ed %}
+    <div class="nexo-card mb-4">
+        <div class="nexo-card-head">
+            <div>
+                <h2><i class="bi bi-person-badge text-purple"></i> Usuário CLIENTE</h2>
+                <p class="sub">Acesso do lojista ao painel do cliente</p>
+            </div>
+        </div>
+        <div class="nexo-card-body">
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="usuario_nome">Nome <span class="req">*</span></label>
+                    <input type="text" class="form-control" id="usuario_nome" name="usuario_nome" placeholder="Nome do responsável" required>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="usuario_email">E-mail <span class="req">*</span></label>
+                    <input type="email" class="form-control" id="usuario_email" name="usuario_email" placeholder="cliente@empresa.com.br" required>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="nexo-label" for="usuario_senha">Senha inicial <span class="req">*</span></label>
+                    <input type="text" class="form-control" id="usuario_senha" name="usuario_senha" placeholder="senha de primeiro acesso" required>
+                </div>
+            </div>
+            <p class="field-hint mt-3 mb-0"><i class="bi bi-shield-lock"></i> Será criado apenas o usuário do tipo <strong>CLIENTE</strong> vinculado a esta empresa.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="d-flex gap-2 justify-content-end">
+        <a href="{{ url_for('admin.empresas') }}" class="btn-ghost">Cancelar</a>
+        <button type="submit" class="btn-nexo"><i class="bi bi-check2-circle"></i> {{ 'Salvar alterações' if ed else 'Salvar empresa' }}</button>
+    </div>
+</form>
+{% endblock %}
