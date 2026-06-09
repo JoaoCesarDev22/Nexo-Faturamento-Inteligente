@@ -14,33 +14,14 @@
         <p class="auth-eyebrow">NEXO <span>Faturamento Inteligente</span></p>
         <div>
             <h1 class="auth-title">Acesso ao Portal</h1>
-            <p class="auth-sub">Escolha seu perfil ou insira o e-mail</p>
+            <p class="auth-sub">Entre com seu e-mail e senha</p>
         </div>
     </div>
 
-    {# O toggle "tipo_acesso" é APENAS um conforto visual: o backend (auth.login)
-       autentica por e-mail/senha e direciona conforme `Usuario.role`. Mantemos o
-       hidden field para preservar a UX do Hélio; ignorá-lo no servidor é seguro. #}
+    {# Login unificado: o backend autentica por e-mail/senha e direciona conforme
+       Usuario.role. Não há mais toggle de perfil — o seletor visual "Time Nexo /
+       Cliente" era redundante (o role já é consultado no banco). #}
     <form method="POST" action="{{ url_for('auth.login') }}">
-        <input type="hidden" name="tipo_acesso" id="tipo_acesso" value="{{ tipo_acesso|default('CLIENTE') }}">
-
-        <div class="mb-4">
-            <span class="nexo-label">Perfil de acesso</span>
-            <div class="access-switch" role="group" aria-label="Escolha o perfil de acesso">
-                <button type="button"
-                        class="access-option {{ 'active' if tipo_acesso == 'ADMIN' }}"
-                        data-access-type="ADMIN"
-                        aria-pressed="{{ 'true' if tipo_acesso == 'ADMIN' else 'false' }}">
-                    <i class="bi bi-stars"></i> Time Nexo
-                </button>
-                <button type="button"
-                        class="access-option {{ 'active' if tipo_acesso != 'ADMIN' }}"
-                        data-access-type="CLIENTE"
-                        aria-pressed="{{ 'false' if tipo_acesso == 'ADMIN' else 'true' }}">
-                    <i class="bi bi-shop"></i> Cliente
-                </button>
-            </div>
-        </div>
 
         {# Flashes locais (erro de credencial, sessão terminada etc.). #}
         {% with messages = get_flashed_messages(with_categories=true) %}
@@ -78,31 +59,27 @@
             Entrar <i class="bi bi-arrow-right"></i>
         </button>
     </form>
+
+    {# Substitui o antigo "Cadastre-se aqui" — não há autocadastro no NEXO; o
+       onboarding é consultivo via /como-aderir. #}
+    <p class="auth-aside text-center mt-4 mb-0" style="font-size: 0.92rem; color: var(--text-muted, #9aa0b7);">
+        É novo por aqui?
+        <a href="{{ url_for('como_aderir') }}" style="color: var(--accent, #a855f7); font-weight: 600; text-decoration: none;">
+            Saiba como ter acesso ao portal!
+        </a>
+    </p>
 </div>
 <p class="auth-tagline">Nexo: inteligência que impulsiona seu faturamento.</p>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-  /* Toggle de perfil (Time Nexo / Cliente) + mostrar/ocultar senha — JS vanilla. */
+  /* Mostrar/ocultar senha — JS vanilla. (Toggle de perfil removido junto com o
+     access-switch — login é unificado e o role vem do banco.) */
   (function () {
-    var accessInput = document.getElementById('tipo_acesso');
-    var accessOptions = document.querySelectorAll('[data-access-type]');
-    accessOptions.forEach(function (option) {
-      option.addEventListener('click', function () {
-        if (!accessInput) return;
-        accessInput.value = option.getAttribute('data-access-type');
-        accessOptions.forEach(function (item) {
-          var selected = item === option;
-          item.classList.toggle('active', selected);
-          item.setAttribute('aria-pressed', selected ? 'true' : 'false');
-        });
-      });
-    });
-
     var btn = document.getElementById('toggleSenha');
     var inp = document.getElementById('senha');
-    var ic = document.getElementById('toggleSenhaIcon');
+    var ic  = document.getElementById('toggleSenhaIcon');
     if (!btn || !inp) return;
     btn.addEventListener('click', function () {
       var mostrar = inp.type === 'password';

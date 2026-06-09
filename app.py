@@ -17,7 +17,7 @@ import os
 import logging
 from pathlib import Path
 
-from flask import Flask, redirect, url_for
+from flask import Flask, redirect, url_for, render_template
 from flask_login import current_user
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
@@ -100,14 +100,18 @@ def create_app(config_name: str = None) -> Flask:
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(cliente_bp, url_prefix="/cliente")
 
-    # Rota raiz: redireciona conforme o perfil logado.
+    # Rota raiz: serve a landing page institucional (entrada comercial pública).
+    # Usuários já autenticados também caem aqui — basta clicar em "Acessar portal"
+    # que o auth.login os redireciona direto para o dashboard do perfil correto.
     @app.route("/")
     def index():
-        if not current_user.is_authenticated:
-            return redirect(url_for("auth.login"))
-        if current_user.is_admin:
-            return redirect(url_for("admin.dashboard"))
-        return redirect(url_for("cliente.dashboard"))
+        return render_template("landing.html")
+
+    # Onboarding comercial: explica como obter acesso (handoff via WhatsApp + reunião).
+    # Linkado pelo login ("É novo por aqui?") e pelo footer da landing.
+    @app.route("/como-aderir")
+    def como_aderir():
+        return render_template("como_aderir.html")
 
     # Health check simples para verificar se a app subiu.
     @app.route("/healthz")

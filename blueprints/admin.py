@@ -635,3 +635,70 @@ def processar_analise(id_analise):
     db.session.commit()
     flash(f"Falha no processamento: {resultado.mensagem}", "danger")
     return redirect(url_for("admin.dashboard"))
+
+
+@admin_bp.route("/analise/deletar/<int:id_analise>", methods=["POST"])
+@admin_required
+def analise_deletar(id_analise):
+    """
+    Exclui uma análise e TUDO que depende dela.
+
+    Como os relationships em models.py não têm cascade configurado (DER V4
+    imutável + controle explícito do que sai do banco), removemos os filhos
+    em ordem antes da Analise:
+
+      1) UploadRelatorio  → também apaga os .xlsx/.csv físicos (best-effort);
+      2) IndicadorAnalise (1:1);
+      3) RelatorioAnalise (1:1);
+      4) Analise.
+
+    Usado primariamente para LIMPAR REGISTROS DE TESTE. Aceita qualquer
+    status, inclusive CONCLUIDO publicado — a confirmação no JS é a
+    salvaguarda contra acidente. POST-only para impedir deleção via
+    crawler/preload de link.
+    """
+    analise = db.session.get(Analise, id_analise)
+    if not analise:
+        flash("Análise não encontrada.", "danger")
+        return redirect(url_for("admin.analises"))
+
+    # Snapshot para a mensagem antes de o objeto sair da sessão
+    titulo_emp = analise.empresa.nome_fantasia or analise.empresa.razao_social
+    id_str = f"#{analise.id_analise}"
+
+    # 1) Uploads + arquivos físicos
+    uploads = db.session.execute(
+        select(UploadRelatorio).where(UploadRelatorio.id_analise == id_analise)
+    ).scalars().all()
+    for up in uploads:
+        try:
+            caminho = _resolver_caminho(up)
+            if caminho and os.path.exists(caminho):
+                os.remove(caminho)
+        except OSError:
+            pass  # remoção física é best-effort; o registro segue sendo deletado
+        db.session.delete(up)
+
+    # 2) IndicadorAnalise (1:1) — pode não existir se o ETL nunca rodou
+    if analise.indicador is not None:
+        db.session.delete(analise.indicador)
+
+    # 3) RelatorioAnalise (1:1) — pode não existir se nunca houve devolutiva
+    if analise.relatorio is not None:
+        db.session.delete(analise.relatorio)
+
+    # 4) Analise (pai)
+    db.session.delete(analise)
+
+    try:
+        db.session.commit()
+    except IntegrityError as e:
+        db.session.rollback()
+        flash(
+            f"Não foi possível excluir a análise {id_str}: {e.orig if e.orig else e}",
+            "danger",
+        )
+        return redirect(url_for("admin.analises"))
+
+    flash(f"Análise {id_str} ({titulo_emp}) excluída com sucesso.", "success")
+    return redirect(url_for("admin.analises"))

@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  NEXO — Faturamento Inteligente · Landing Page
+  PREVIEW STANDALONE (sem Flask/Jinja)
+
+  Este arquivo serve apenas para preview visual da landing
+  fora do servidor Flask. A versão oficial de produção é o
+  template Jinja em:
+
+      templates/landing.html
+
+  Que usa o mesmo CSS e JS (sem alterações):
+      static/css/landing.css
+      static/js/landing.js
+
+  Stack: HTML + Bootstrap 5 + JS vanilla + Plotly.js
+  Proibido aqui: React, JSX, Babel, Tailwind, SPA, fetch/AJAX.
+  ============================================================
+-->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXO — Faturamento Inteligente | Consultoria de dados para lojas de tintas</title>
+  <meta name="description" content="Transforme relatórios de vendas e compras de lojas de tintas e materiais de pintura em indicadores estratégicos, dashboards e devolutivas práticas para apoiar decisões de faturamento e identificar pressão de estoque." />
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous" />
+
+  <!-- Fontes -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet" />
+
+  <!-- Plotly.js -->
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+
+  <!-- Landing styles (servidos pelo Flask via url_for) -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}" />
+</head>
+<body>
+
+<!-- ============ HEADER ============ -->
+<header class="nexo-header">
+  <div class="nexo-header-inner">
+    <a href="#inicio" class="brand">
+      <div class="brand-mark">N</div>
+      <div class="brand-text">
+        <div class="b1">NEXO</div>
+        <div class="b2">Faturamento Inteligente</div>
+      </div>
+    </a>
+
+    <nav>
+      <ul class="nav-links">
+        <li><a href="#inicio">Início</a></li>
+        <li><a href="#como-funciona">Como funciona</a></li>
+        <li><a href="#indicadores">Indicadores</a></li>
+        <li><a href="#planos">Planos</a></li>
+        <li><a href="#demonstracao">Demonstração</a></li>
+      </ul>
+    </nav>
+
+    <div class="header-actions">
+      <a href="#demonstracao" class="btn-nexo btn-nexo-secondary header-demo-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+        Ver Demo do Painel
+      </a>
+      <a href="{{ url_for('auth.login') }}" class="btn-nexo btn-nexo-primary">
+        Acessar portal
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+      </a>
+    </div>
+  </div>
+</header>
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="inicio">
+  <div class="bg-ornament"></div>
+  <div class="container position-relative">
+    <div class="row align-items-center g-5">
+      <div class="col-lg-6">
+        <span class="section-tag">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z"></path></svg>
+          Consultoria de dados · MVP acadêmico
+        </span>
+        <h1>
+          Transforme relatórios do seu PDV em <span class="accent">decisões para vender melhor</span>
+        </h1>
+        <p class="lead">
+          O NEXO processa relatórios de vendas e compras de lojas de tintas e materiais de pintura, transforma os dados em indicadores viáveis e entrega uma devolutiva estratégica escrita por consultor — para apoiar decisões de compra, reposição e leitura de faturamento.
+        </p>
+        <div class="hero-cta">
+          <a href="{{ url_for('auth.login') }}" class="btn-nexo btn-nexo-primary btn-nexo-lg">
+            Acessar portal
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+          </a>
+          <a href="#demonstracao" class="btn-nexo btn-nexo-secondary btn-nexo-lg">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            Ver Demo do Painel
+          </a>
+        </div>
+        <div class="hero-trust">
+          <span class="hero-trust-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+            Sem cadastro automático
+          </span>
+          <span class="hero-trust-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+            Atendimento consultivo
+          </span>
+          <span class="hero-trust-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+            Dados processados com Pandas
+          </span>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="mockup">
+          <div class="mockup-head">
+            <div class="mockup-title-block">
+              <div class="mt-1">Tintas Almeida</div>
+              <div class="mt-2">Análise mensal · Abril/2026 · Plano PRATA</div>
+            </div>
+            <span class="badge-published">
+              <span class="dot"></span>
+              Análise publicada
+            </span>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-tile green">
+              <div class="label">Faturamento total</div>
+              <div class="value">R$ 142.800</div>
+            </div>
+            <div class="kpi-tile">
+              <div class="label">Total comprado</div>
+              <div class="value">R$ 156.300</div>
+            </div>
+            <div class="kpi-tile amber">
+              <div class="label">Indicador de Pressão de Estoque</div>
+              <div class="value">R$ 13.500</div>
+            </div>
+            <div class="kpi-tile purple">
+              <div class="label">Mais vendido</div>
+              <div class="value" style="font-size:13px;">Tinta Acrílica Fosca 18L · 318un</div>
+            </div>
+          </div>
+
+          <div class="mockup-chart" id="hero-chart"></div>
+
+          <div class="mockup-list">
+            <div class="ll">Devolutiva estratégica · trecho</div>
+            <div class="row-i">
+              <strong>Maior faturamento</strong>
+              <span class="v">Massa Corrida Premium PVA 18L · R$ 28.450</span>
+            </div>
+            <div class="row-i">
+              <strong>Maior saldo estimado parado</strong>
+              <span class="v">Esmalte Sintético Brilhante Alto Brilho 3,6L | 85 un paradas</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PROBLEMA ============ -->
+<section style="background: var(--nexo-bg-2);" id="problema">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="section-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        O cenário das lojas de tintas e materiais de pintura
+      </span>
+      <h2 class="section-title">Seus dados existem.<br/>O problema é entender o que eles estão <span class="accent">dizendo</span>.</h2>
+      <p class="section-subtitle mx-auto text-center">
+        Lojas de tintas e pequenos comércios de construção, reforma e pintura usam o PDV todos os dias — mas raramente conseguem transformar esses relatórios em decisão.
+      </p>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-6 col-lg-3">
+        <div class="nexo-card">
+          <div class="nexo-card-icon red">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+          </div>
+          <h3>Relatórios difíceis de interpretar</h3>
+          <p>Relatórios longos do PDV mostram vendas e compras de tintas, massas, rolos e acessórios, mas o gestor da loja nem sempre consegue transformar esses dados em decisão.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="nexo-card">
+          <div class="nexo-card-icon amber">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+          </div>
+          <h3>Compras feitas no feeling</h3>
+          <p>Reposição de tintas, massas e acessórios feita por costume, sem cruzar o que mais vendeu no mês com o que foi comprado no mesmo período.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="nexo-card">
+          <div class="nexo-card-icon red">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          </div>
+          <h3>Possível saldo estimado parado sem alerta gerencial</h3>
+          <p>O sistema registra entradas e saídas, mas não sinaliza claramente quando um item de pintura foi comprado em volume e teve baixa saída no período.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="nexo-card">
+          <div class="nexo-card-icon amber">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+          </div>
+          <h3>Oportunidades escondidas</h3>
+          <p>Tintas com maior saída, linhas que sustentam o faturamento da loja e insumos com boa recorrência — informações que existem nos dados mas raramente chegam ao gestor.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="ganhos-strip">
+      <span class="ganhos-label">Ganhos práticos</span>
+      <div class="ganho-chip">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        Economia de espaço físico no estoque
+      </div>
+      <div class="ganho-chip">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        Identificação rápida de obsolescência de catálogo
+      </div>
+      <div class="ganho-chip">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        Compras alinhadas à saída real dos produtos
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SOLUÇÃO ============ -->
+<section id="como-funciona">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="section-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path></svg>
+        A solução
+      </span>
+      <h2 class="section-title">O NEXO é uma <span class="accent">consultoria de dados</span><br/>com portal digital</h2>
+      <p class="section-subtitle mx-auto text-center">
+        Você disponibiliza os relatórios de vendas e compras da sua loja de tintas ou material de pintura. A equipe NEXO processa os dados, gera os indicadores viáveis e entrega um dashboard com uma devolutiva estratégica escrita por consultor.
+      </p>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-md-6 col-lg-3">
+        <div class="flow-card">
+          <div class="flow-num">01</div>
+          <div class="flow-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          </div>
+          <h3>Upload dos relatórios</h3>
+          <p>Você envia os arquivos de vendas e compras exportados do PDV da loja. O sistema valida e organiza os dados.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="flow-card">
+          <div class="flow-num">02</div>
+          <div class="flow-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg>
+          </div>
+          <h3>Processamento com Pandas</h3>
+          <p>Pipeline Python lê os arquivos, padroniza e calcula os indicadores do período.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="flow-card">
+          <div class="flow-num">03</div>
+          <div class="flow-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          </div>
+          <h3>Dashboard Plotly.js</h3>
+          <p>KPIs e gráficos renderizados direto no portal, em tema escuro premium.</p>
+        </div>
+      </div>
+      <div class="col-md-6 col-lg-3">
+        <div class="flow-card">
+          <div class="flow-num">04</div>
+          <div class="flow-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+          </div>
+          <h3>Devolutiva estratégica</h3>
+          <p>Consultor escreve a leitura dos dados: pontos positivos, alertas e recomendações práticas.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center mt-4">
+      <small style="color: var(--nexo-text-3); font-size: 12px;">
+        O MVP é semiassistido — o pipeline automatiza o processamento, e um analista NEXO revisa e escreve a devolutiva final.
+      </small>
+    </div>
+
+    <div class="testimonial">
+      <svg class="quote-mark" width="38" height="38" viewBox="0 0 24 24" fill="currentColor"><path d="M9.5 7C6.46 7 4 9.46 4 12.5V20h7v-7H7c0-1.66 1.34-3 3.5-3V7zm9 0C15.46 7 13 9.46 13 12.5V20h7v-7h-4c0-1.66 1.34-3 3.5-3V7z"></path></svg>
+      <p>“Depois da devolutiva do NEXO, parei de repor o esmalte que estava encalhando e reforçei a linha de tinta acrílica premium, que puxava o faturamento. Em dois meses sobrou espaço na prateleira e o estoque girou melhor.”</p>
+      <div class="testimonial-author">
+        <div class="ta-avatar">RA</div>
+        <div>
+          <div class="ta-name">Renata Almeida</div>
+          <div class="ta-role">Gestora · Tintas Almeida — exemplo demonstrativo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INDICADORES DO MVP ============ -->
+<section style="background: var(--nexo-bg-2);" id="indicadores">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="section-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline><polyline points="16 7 22 7 22 13"></polyline></svg>
+        KPIs do MVP
+      </span>
+      <h2 class="section-title">Indicadores que fazem sentido com os <span class="accent">dados reais</span> do PDV</h2>
+      <p class="section-subtitle mx-auto text-center">
+        O NEXO entrega apenas indicadores que podem ser calculados de forma honesta a partir dos arquivos de vendas e compras da loja de tintas ou material de pintura.
+      </p>
+    </div>
+
+    <div class="indicators-wrap">
+      <div class="indicator-row">
+        <div class="indicator-num">01</div>
+        <div class="indicator-name">Faturamento total do período</div>
+        <div class="indicator-tag">Vendas</div>
+      </div>
+      <div class="indicator-row">
+        <div class="indicator-num">02</div>
+        <div class="indicator-name">Total comprado no período</div>
+        <div class="indicator-tag">Compras</div>
+      </div>
+      <div class="indicator-row">
+        <div class="indicator-num">03</div>
+        <div class="indicator-name">Indicador de Pressão de Estoque</div>
+        <div class="indicator-tag">Estimativa</div>
+      </div>
+      <div class="indicator-row">
+        <div class="indicator-num">04</div>
+        <div class="indicator-name">Produto mais vendido (volume)</div>
+        <div class="indicator-tag">Vendas</div>
+      </div>
+      <div class="indicator-row">
+        <div class="indicator-num">05</div>
+        <div class="indicator-name">Produto com maior faturamento</div>
+        <div class="indicator-tag">Vendas</div>
+      </div>
+      <div class="indicator-row">
+        <div class="indicator-num">06</div>
+        <div class="indicator-name">Produto com maior saldo estimado parado</div>
+        <div class="indicator-tag">Estimativa</div>
+      </div>
+
+      <div class="disclaimer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        <div>
+          <strong>Aviso de transparência:</strong>
+          <span>o Indicador de Pressão de Estoque representa uma diferença estimada entre compras e vendas no período. Ele não representa lucro real, CMV, margem nem estoque físico real — é uma sinalização gerencial para orientar a leitura estratégica.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DEMONSTRAÇÃO DO DASHBOARD ============ -->
+<section id="demonstracao">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="section-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="9"></line><line x1="9" y1="13" x2="15" y2="13"></line><line x1="9" y1="17" x2="13" y2="17"></line></svg>
+        Pré-visualização
+      </span>
+      <h2 class="section-title">O que o cliente vê no portal <span class="accent">após a análise</span></h2>
+      <p class="section-subtitle mx-auto text-center">
+        Dashboard limpo, com os KPIs do período da loja de tintas, gráficos renderizados nativamente em Plotly.js e a devolutiva estratégica escrita pelo consultor.
+      </p>
+    </div>
+
+    <div class="dashboard-demo">
+      <div class="demo-head">
+        <div class="demo-head-title">
+          <h4>Visão Geral · Tintas Almeida</h4>
+          <p>Análise mensal · 01/04/2026 a 30/04/2026 · Plano PRATA</p>
+        </div>
+        <span class="badge-published">
+          <span class="dot"></span>
+          Análise publicada
+        </span>
+      </div>
+
+      <div class="demo-kpi-grid">
+        <div class="demo-kpi green">
+          <div class="label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            Faturamento total
+          </div>
+          <div class="value">R$ 142.800</div>
+          <div class="sub">Resultado consolidado da análise</div>
+        </div>
+        <div class="demo-kpi">
+          <div class="label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11H1l8-8 8 8h-8v8H9z"></path></svg>
+            Total comprado
+          </div>
+          <div class="value">R$ 156.300</div>
+          <div class="sub">Baseado no relatório de compras enviado</div>
+        </div>
+        <div class="demo-kpi amber">
+          <div class="label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            Indicador de Pressão de Estoque
+          </div>
+          <div class="value">R$ 13.500</div>
+          <div class="sub">Estimativa · não representa lucro real</div>
+        </div>
+      </div>
+
+      <div class="demo-charts">
+        <div class="demo-chart-card">
+          <h5>Evolução do Faturamento × Compras</h5>
+          <div class="sub">Últimos 5 meses · em R$</div>
+          <div id="demo-chart-evolucao" style="height: 240px;"></div>
+        </div>
+        <div class="demo-chart-card">
+          <h5>Produtos de destaque da análise</h5>
+          <div class="sub">Período analisado</div>
+          <div id="demo-chart-top" style="height: 240px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MÉTODO NEXO ============ -->
+<section style="background: var(--nexo-bg-2);" id="metodo">
+  <div class="container">
+    <div class="text-center mb-2">
+      <span class="section-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+        Método NEXO
+      </span>
+      <h2 class="section-title">Mais que gráfico:<br/><span class="accent">interpretação estratégica</span></h2>
+      <p class="section-subtitle mx-auto text-center">
+        O dashboard mostra os números. A devolutiva estratégica explica o que esses números indicam, com leitura escrita por um consultor para o gestor da loja.
+      </p>
+    </div>
+
+    <div class="report-blocks">
+      <div class="report-block">
+        <div class="step">ETAPA 01</div>
+        <h4>Resumo executivo</h4>
+        <p>Visão consolidada do período em uma leitura curta e direta.</p>
+      </div>
+      <div class="report-block">
+        <div class="step">ETAPA 02</div>
+        <h4>Pontos positivos</h4>
+        <p>O que vai bem na operação e merece ser mantido ou ampliado.</p>
+      </div>
+      <div class="report-block">
+        <div class="step">ETAPA 03</div>
+        <h4>Pontos de alerta</h4>
+        <p>Sinais que precisam de atenção: maior saldo estimado parado em determinados produtos de pintura, queda de saída em SKU relevante ou compras acima da demanda observada.</p>
+      </div>
+      <div class="report-block">
+        <div class="step">ETAPA 04</div>
+        <h4>Recomendações</h4>
+        <p>Ações práticas, priorizadas pelo consultor para o próximo ciclo.</p>
+      </div>
+      <div class="report-block">
+        <div class="step">ETAPA 05</div>
+        <h4>Conclusão estratégica</h4>
+        <p>Fechamento consultivo orientando a próxima decisão do gestor da loja de tintas.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ PLANOS ============ -->
+<section id="planos">
+  <div class="container">
+    <div class="text-center mb-5">
+      <span class="section-tag">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+        Planos
+      </span>
+      <h2 class="section-title">Três níveis de profundidade<br/>para a sua <span class="accent">análise mensal</span></h2>
+      <p class="section-subtitle mx-auto text-center">
+        Todos os planos entregam dashboard e devolutiva estratégica. Mudam a profundidade da consultoria, a frequência e o nível de detalhe do relatório.
+      </p>
+    </div>
+
+    <div class="plans-grid">
+      <!-- BRONZE -->
+      <div class="plan bronze">
+        <div class="plan-name">BRONZE</div>
+        <div class="plan-tag">Para começar a olhar os dados com clareza.</div>
+        <div class="plan-price">Sob consulta</div>
+        <div class="plan-price-sub">1 análise por mês</div>
+
+        <ul class="plan-features">
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            1 análise mensal
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Leitura inicial dos dados
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Devolutiva sucinta
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Indicadores principais
+          </li>
+        </ul>
+
+        <a href="{{ url_for('auth.login') }}" class="btn-nexo btn-nexo-secondary w-100" style="justify-content:center;">
+          Acessar portal
+        </a>
+      </div>
+
+      <!-- PRATA -->
+      <div class="plan prata">
+        <div class="plan-name">PRATA</div>
+        <div class="plan-tag">Para quem quer entender por que os números mudam.</div>
+        <div class="plan-price">Sob consulta</div>
+        <div class="plan-price-sub">1 análise por mês</div>
+
+        <ul class="plan-features">
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            1 análise mensal
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Indicadores principais do período
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Devolutiva completa
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Pontos positivos, alertas e recomendações
+          </li>
+        </ul>
+
+        <a href="{{ url_for('auth.login') }}" class="btn-nexo btn-nexo-secondary w-100" style="justify-content:center;">
+          Acessar portal
+        </a>
+      </div>
+
+      <!-- OURO -->
+      <div class="plan ouro featured">
+        <span class="plan-flag">Mais completo</span>
+        <div class="plan-name">OURO</div>
+        <div class="plan-tag">Para quem precisa de acompanhamento quinzenal.</div>
+        <div class="plan-price">Sob consulta</div>
+        <div class="plan-price-sub">Até 2 análises por mês · recorte quinzenal</div>
+
+        <ul class="plan-features">
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Até 2 análises por mês
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Recorte quinzenal disponível
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Indicadores do período consolidados
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Devolutiva premium
+          </li>
+          <li>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            Recomendações estratégicas mais detalhadas
+          </li>
+        </ul>
+
+        <a href="{{ url_for('auth.login') }}" class="btn-nexo btn-nexo-primary w-100" style="justify-content:center;">
+          Acessar portal
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CTA FINAL ============ -->
+<section>
+  <div class="container">
+    <div class="cta-final">
+      <h2>Pronto para transformar<br/>relatórios em <span class="accent">decisões?</span></h2>
+      <p>O NEXO ajuda lojas de tintas e pequenos comércios de construção, reforma e pintura a enxergarem melhor seus dados de vendas e compras, com indicadores, dashboard e devolutiva estratégica.</p>
+      <div class="cta-buttons">
+        <a href="{{ url_for('auth.login') }}" class="btn-nexo btn-nexo-primary btn-nexo-lg">
+          Acessar portal
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </a>
+        <a href="#contato" class="btn-nexo btn-nexo-secondary btn-nexo-lg">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+          Falar com a equipe NEXO
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="nexo-footer" id="contato">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="brand">
+          <div class="brand-mark">N</div>
+          <div class="brand-text">
+            <div class="b1">NEXO</div>
+            <div class="b2">Faturamento Inteligente</div>
+          </div>
+        </div>
+        <p>
+          Consultoria de dados para lojas de tintas e pequenos comércios de construção, reforma e pintura. Transformamos relatórios de PDV em indicadores estratégicos, dashboards e devolutivas práticas.
+        </p>
+      </div>
+
+      <div class="footer-col">
+        <h5>Navegação</h5>
+        <ul>
+          <li><a href="#inicio">Início</a></li>
+          <li><a href="#como-funciona">Como funciona</a></li>
+          <li><a href="#indicadores">Indicadores</a></li>
+          <li><a href="#planos">Planos</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Portal</h5>
+        <ul>
+          <li><a href="{{ url_for('auth.login') }}">Acessar portal</a></li>
+          <li><a href="#demonstracao">Demonstração</a></li>
+          <li><a href="#metodo">Método NEXO</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-col">
+        <h5>Contato</h5>
+        <ul>
+          <li>Contato externo informado pela equipe NEXO</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© 2026 NEXO — Faturamento Inteligente. Todos os direitos reservados.</span>
+      <span class="academic-tag">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"></path><path d="M6 12v5c3 3 9 3 12 0v-5"></path></svg>
+        Projeto Integrador II · MVP acadêmico
+      </span>
+    </div>
+  </div>
+</footer>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz"
+        crossorigin="anonymous"></script>
+
+<!-- Landing JS (Plotly mockups) -->
+<script src="{{ url_for('static', filename='js/landing.js') }}"></script>
+
+</body>
+</html>

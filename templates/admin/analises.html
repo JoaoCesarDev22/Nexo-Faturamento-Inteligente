@@ -68,7 +68,7 @@
                     <th>Uploads</th>
                     <th>Criação</th>
                     <th>Publicado</th>
-                    <th class="text-end">Ação</th>
+                    <th class="text-end">Ações</th>
                 </tr>
             </thead>
             <tbody>
@@ -84,7 +84,22 @@
                     <td style="white-space:nowrap;">{{ uppill('V', up_v.status_processamento if up_v else None) }} {{ uppill('C', up_c.status_processamento if up_c else None) }}</td>
                     <td class="t-mut t-mono">{{ a.data_criacao.strftime('%d/%m/%Y') }}</td>
                     <td>{% if a.relatorio and a.relatorio.publicado %}<span class="nexo-badge b-green"><i class="bi bi-check2"></i> Sim</span>{% else %}<span class="nexo-badge b-muted">Não</span>{% endif %}</td>
-                    <td class="text-end"><a href="{{ url_for('admin.analise_upload', id_analise=a.id_analise) }}" class="btn-ghost btn-sm-x"><i class="bi bi-box-arrow-up-right"></i> Abrir</a></td>
+                    <td class="text-end">
+                        <div class="d-inline-flex align-items-center gap-1">
+                            <a href="{{ url_for('admin.analise_upload', id_analise=a.id_analise) }}" class="btn-ghost btn-sm-x"><i class="bi bi-box-arrow-up-right"></i> Abrir</a>
+                            {# Trigger do modal central — o <form method=POST> real vive UMA única vez
+                               no final do bloco e tem sua action setada dinamicamente pelo handler de
+                               show.bs.modal. data-bs-empresa/periodo viram contexto no corpo do modal. #}
+                            <button type="button" class="btn btn-outline-danger btn-sm"
+                                    data-bs-toggle="modal" data-bs-target="#confirmDeleteModal"
+                                    data-bs-url="{{ url_for('admin.analise_deletar', id_analise=a.id_analise) }}"
+                                    data-bs-empresa="{{ a.empresa.nome_fantasia or a.empresa.razao_social }}"
+                                    data-bs-periodo="{{ a.periodo_inicio.strftime('%d/%m/%Y') }} – {{ a.periodo_fim.strftime('%d/%m/%Y') }}"
+                                    title="Excluir análise" aria-label="Excluir análise">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
                 <tr id="semResultados" style="display:none;">
@@ -104,6 +119,50 @@
     </div>
 </div>
 {% endif %}
+
+{# =====================================================================
+   Modal único de confirmação de exclusão.
+   - 1 instância no DOM, reaproveitada por TODAS as linhas (1 trigger por linha).
+   - O <form id="confirmDeleteForm"> tem action vazia: é preenchida em runtime
+     pelo handler de show.bs.modal a partir do data-bs-url do botão clicado.
+   - Visual alinhado ao tema escuro do Hélio: bg-dark + border-secondary +
+     btn-close-white. Sem CSS adicional.
+   ===================================================================== #}
+<div class="modal fade" id="confirmDeleteModal" tabindex="-1"
+     aria-labelledby="confirmDeleteLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title d-flex align-items-center gap-2" id="confirmDeleteLabel">
+                    <i class="bi bi-exclamation-triangle-fill text-danger"></i>
+                    Confirmar exclusão
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Você está prestes a excluir permanentemente:</p>
+                <ul class="mb-3" style="list-style:none; padding-left:0;">
+                    <li><strong class="text-light" id="confirmDeleteEmpresa">—</strong></li>
+                    <li class="text-muted t-mono" style="font-size:0.88rem;" id="confirmDeletePeriodo">—</li>
+                </ul>
+                <p class="mb-0 small text-muted">
+                    Todos os indicadores, uploads e a devolutiva estratégica vinculados serão
+                    removidos do banco. <strong class="text-light">Esta ação não pode ser desfeita.</strong>
+                </p>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form method="POST" action="" id="confirmDeleteForm" class="d-inline m-0">
+                    <button type="submit" class="btn btn-danger btn-sm">
+                        <i class="bi bi-trash"></i> Excluir definitivamente
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -134,6 +193,28 @@
     if (fs) fs.addEventListener('change', aplicar);
     if (limpar) limpar.addEventListener('click', function () {
       if (fe) fe.value = ''; if (fs) fs.value = ''; aplicar();
+    });
+  })();
+
+  /* ---- Modal de confirmação de exclusão ----
+     Listener único em show.bs.modal: lê data-bs-url / -empresa / -periodo
+     do botão que abriu o modal (event.relatedTarget) e popula a action do
+     form + os spans de contexto. Roda uma vez por abertura. */
+  (function () {
+    var modal = document.getElementById('confirmDeleteModal');
+    if (!modal) return;
+    var form = document.getElementById('confirmDeleteForm');
+    var labelEmp = document.getElementById('confirmDeleteEmpresa');
+    var labelPer = document.getElementById('confirmDeletePeriodo');
+    modal.addEventListener('show.bs.modal', function (event) {
+      var trigger = event.relatedTarget;
+      if (!trigger) return;
+      var url = trigger.getAttribute('data-bs-url') || '';
+      var empresa = trigger.getAttribute('data-bs-empresa') || 'Análise';
+      var periodo = trigger.getAttribute('data-bs-periodo') || '';
+      if (form) form.setAttribute('action', url);
+      if (labelEmp) labelEmp.textContent = empresa;
+      if (labelPer) labelPer.textContent = periodo;
     });
   })();
 </script>

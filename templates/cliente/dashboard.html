@@ -188,21 +188,122 @@
 <script>
   const dashboardData = {{ dashboard_data|tojson }};
 
-  NEXO.plot('chartCliente', [{
-    type: 'bar',
-    x: dashboardData.comparativo.labels,
-    y: dashboardData.comparativo.values,
-    marker: { color: ['#22c55e', '#a855f7'] },
-    width: 0.5,
-    hovertemplate: '%{x}: R$ %{y:,.2f}<extra></extra>'
-  }], { yaxis: { tickprefix: 'R$ ', rangemode: 'tozero' }, height: 240 });
+  /* ---- Helpers locais de formatação BR (separador de milhar correto) ---- */
+  function nexoFmtBRL(v) {
+    return Number(v || 0).toLocaleString('pt-BR', {
+      minimumFractionDigits: 2, maximumFractionDigits: 2
+    });
+  }
+  function nexoFmtBRLshort(v) {
+    var n = Number(v || 0);
+    return Math.abs(n) >= 1000
+      ? n.toLocaleString('pt-BR', { maximumFractionDigits: 0 })
+      : n.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  }
 
-  NEXO.plot('chartPressaoCliente', [{
-    type: 'indicator',
-    mode: 'number',
-    value: dashboardData.pressao_estoque,
-    number: { prefix: 'R$ ', valueformat: ',.2f', font: { color: '#fbd07a', size: 28 } }
-  }], { margin: { l: 10, r: 10, t: 12, b: 12 }, height: 240 });
+  /* ====================================================================
+     Gráfico 1 — Compras x Vendas (barras com data labels + animação)
+     - cores Hélio: âmbar (saída) / azul neon (entrada)
+     - tooltip dark com borda roxa do tema
+     - data labels em R$ no topo (sem precisar hover)
+     - animação cubic-in-out de y=0 até o valor real (~900ms)
+     ==================================================================== */
+  (function () {
+    var labels = dashboardData.comparativo.labels;
+    var values = dashboardData.comparativo.values;
+    var cores  = ['#f59e0b', '#38bdf8'];  /* compras = âmbar, vendas = azul neon */
+
+    NEXO.plot('chartCliente', [{
+      type: 'bar',
+      x: labels,
+      y: labels.map(function () { return 0; }),   /* start at 0 para animar */
+      marker: {
+        color: cores,
+        line: { color: 'rgba(255,255,255,0.10)', width: 1 }
+      },
+      width: 0.55,
+      /* customdata leva o valor já formatado em pt-BR para a tooltip */
+      customdata: values.map(nexoFmtBRL),
+      hovertemplate: '<b>%{x}</b><br>R$ %{customdata}<extra></extra>',
+      text: values.map(function (v) { return 'R$ ' + nexoFmtBRLshort(v); }),
+      textposition: 'outside',
+      textfont: { color: '#e8e9f0', size: 12, family: 'Inter, sans-serif' },
+      cliponaxis: false
+    }], {
+      yaxis: {
+        tickprefix: 'R$ ', tickformat: ',.0f',
+        rangemode: 'tozero', fixedrange: true, automargin: true
+      },
+      xaxis: { fixedrange: true, tickfont: { size: 13 } },
+      height: 260,
+      margin: { l: 64, r: 18, t: 32, b: 42 },
+      bargap: 0.45,
+      hoverlabel: {
+        bgcolor: '#181824',
+        bordercolor: '#a855f7',
+        font: { color: '#e8e9f0', family: 'Inter, sans-serif', size: 12 }
+      }
+    });
+
+    if (typeof Plotly !== 'undefined') {
+      window.setTimeout(function () {
+        Plotly.animate('chartCliente', {
+          data: [{ y: values }], traces: [0]
+        }, {
+          transition: { duration: 900, easing: 'cubic-in-out' },
+          frame: { duration: 900, redraw: false }
+        });
+      }, 80);
+    }
+  })();
+
+  /* ====================================================================
+     Gráfico 2 — Indicador de Pressão de Estoque
+     - cor reativa ao SINAL do indicador:
+        +  comprou mais que vendeu  -> pressão real (âmbar)
+        −  vendeu mais que comprou  -> giro saudável (verde)
+        0  equilíbrio                -> cinza neutro
+     - subtítulo qualitativo abaixo do valor
+     - JetBrains Mono nos dígitos, animação ~1100ms
+     ==================================================================== */
+  (function () {
+    var v = Number(dashboardData.pressao_estoque || 0);
+    var cor, legenda;
+    if (v > 0)      { cor = '#fbd07a'; legenda = 'Pressão de estoque'; }
+    else if (v < 0) { cor = '#22c55e'; legenda = 'Giro saudável';      }
+    else            { cor = '#9aa0b7'; legenda = 'Equilíbrio';          }
+
+    NEXO.plot('chartPressaoCliente', [{
+      type: 'indicator',
+      mode: 'number',
+      value: 0,   /* start at 0 para animar */
+      number: {
+        prefix: 'R$ ',
+        valueformat: ',.2f',
+        font: { color: cor, size: 30, family: 'JetBrains Mono, monospace' }
+      },
+      title: {
+        text: '<span style="font-size:0.78rem;letter-spacing:0.04em;text-transform:uppercase;">'
+              + legenda + '</span>',
+        font: { color: '#9aa0b7' }
+      },
+      domain: { x: [0, 1], y: [0, 1] }
+    }], {
+      margin: { l: 10, r: 10, t: 18, b: 16 },
+      height: 240
+    });
+
+    if (typeof Plotly !== 'undefined') {
+      window.setTimeout(function () {
+        Plotly.animate('chartPressaoCliente', {
+          data: [{ value: v }], traces: [0]
+        }, {
+          transition: { duration: 1100, easing: 'cubic-in-out' },
+          frame: { duration: 1100, redraw: false }
+        });
+      }, 150);
+    }
+  })();
 </script>
 {% endif %}
 {% endblock %}

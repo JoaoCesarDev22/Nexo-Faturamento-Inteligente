@@ -1,21 +1,39 @@
 """
-NEXO - Faturamento Inteligente | Motor ETL (Semana 2)
-=======================================================
-Processa relatórios brutos de PDV (Giro de Vendas + Posição de Compras),
-calcula os KPIs OFICIAIS do DER V4 e persiste em indicador_analise.
+NEXO - Faturamento Inteligente | Motor ETL UNIVERSAL (v3)
+==========================================================
+Processa relatórios de PDV (Vendas + Compras) com mapeamento DINÂMICO de
+cabeçalhos: independe da posição das colunas, do nome exato, do tamanho da
+janela temporal (15 dias, mês, trimestre, ano ou histórico inteiro) e
+tolera sujeira (linhas decorativas, quebras de página, totalizações,
+células e linhas em branco entre os registros).
 
-Princípios (MVP/PI2):
-  - Os DataFrames pandas vivem APENAS em memória durante o processamento.
-  - Linhas processadas NÃO são persistidas; só os KPIs finais consolidados.
-  - O indicador de descasamento é o "Indicador de Pressão de Estoque"
-    (saldo estimado entre compras e vendas). NÃO representa lucro, margem,
-    CMV, prejuízo, rentabilidade nem estoque físico real.
-  - Falha de leitura/validação nunca é mascarada com dados falsos: o ETL
-    falha com erro claro ou registra limitação técnica explícita.
+Estratégia (4 camadas):
+  1) Leitura crua: lê o arquivo SEM assumir cabeçalho (header=None,
+     dtype=str), preservando a matriz como string para a varredura.
+  2) Detecção de cabeçalho: varre as primeiras 60 linhas e procura a
+     linha (ou 2 linhas adjacentes, no caso de cabeçalho composto) que
+     MELHOR mapeia os aliases canônicos via substring normalizada.
+  3) DataFrame canônico: a partir da 1ª linha de dados, monta um DF só
+     com as colunas reconhecidas, renomeadas para nomes canônicos.
+  4) Filtro de lixo: descarta linhas onde a coluna-chave é nula ou
+     contém marcadores de rodapé/cabeçalho repetido (totais, "Movimenta",
+     marca d'água "LabSofti" etc.).
 
-A função pública `calcular_kpis_em_memoria` faz todo o cálculo SEM tocar no
-banco (usada pelo teste isolado). `processar_arquivos_analise` mantém a
-assinatura oficial e adiciona a persistência via ORM.
+Regras inegociáveis (MVP/PI2):
+  - DataFrames vivem APENAS em memória; só os KPIs finais são persistidos.
+  - O indicador de descasamento é "Indicador de Pressão de Estoque"
+    (saldo estimado entre compras e vendas). NUNCA expor lucro, margem,
+    CMV, prejuízo, rentabilidade ou estoque real como KPI.
+  - 'Lucro' e 'Total Custo' do PDV são DETECTADOS para mapeamento
+    defensivo (não confundem com outras colunas) e DESCARTADOS para fins
+    de KPI. 'Total Custo' pode gerar APENAS o alerta "venda abaixo do
+    custo informado pelo PDV" — observação do dado bruto, NÃO margem.
+  - Falha de leitura/validação nunca é mascarada com dados falsos.
+  - Status CONCLUIDO nunca é setado aqui — é decisão humana via admin.
+
+Assinatura imutável:
+  processar_arquivos_analise(caminho_vendas, caminho_compras,
+                             id_analise, db_session) -> ResultadoETL
 """
 
 import os
@@ -39,44 +57,35 @@ ResultadoETL = namedtuple(
 
 class ETLValidationError(Exception):
     """Erro de validação de dados/arquivo. Mensagem é segura para exibir ao admin."""
-    pass
 
 
-# Encodings e separadores testados em sequência para arquivos texto/CSV.
+# Encodings e separadores tentados em sequência para arquivos texto/CSV
 ENCODINGS = ("utf-8-sig", "cp1252", "utf-8", "latin1")
 SEPARADORES = (";", ",", "\t")
 
 
 # =====================================================================
-# Helpers de texto / sanitização
+# 1) Sanitização de strings
 # =====================================================================
-def _strip_acentos(texto: str) -> str:
-    """Remove acentos para comparação (normalização NFKD + descarte de diacríticos)."""
+def _strip_acentos(texto) -> str:
     return "".join(
-        c for c in unicodedata.normalize("NFKD", str(texto)) if not unicodedata.combining(c)
+        c for c in unicodedata.normalize("NFKD", str(texto))
+        if not unicodedata.combining(c)
     )
 
 
-def _sanitizar_nome(valor) -> str:
+def _norm_chave(valor) -> str:
     """
-    Sanitização ESTRITA de um nome de coluna/célula de cabeçalho:
-      - vira string; remove BOM (\\ufeff) e espaço fantasma (\\xa0);
-      - elimina quebras de linha; colapsa espaços duplicados; faz strip.
-    Mantém acentos e caixa (é o nome legível/exibível).
+    Normalização AGRESSIVA para casar fragmentos do dicionário de aliases:
+      - remove BOM/NBSP/quebras de linha;
+      - tira acentos; vira minúsculas;
+      - substitui pontuação por espaço; colapsa múltiplos espaços.
+    Resultado é seguro para `fragmento in chave_normalizada`.
     """
     if valor is None:
         return ""
-    s = str(valor)
-    s = s.replace("﻿", "")
-    s = s.replace("\xa0", " ")
-    s = s.replace("\n", " ").replace("\r", " ")
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
-
-
-def _norm_chave(valor) -> str:
-    """Chave normalizada para casar sinônimos de coluna: sanitiza, tira acento, minúsculas."""
-    s = _sanitizar_nome(valor)
+    s = str(valor).replace("﻿", "").replace("\xa0", " ")
+    s = s.replace("\n", " ").replace("\r", " ").replace("\t", " ")
     s = _strip_acentos(s).lower()
     s = re.sub(r"[^a-z0-9 ]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
@@ -84,25 +93,20 @@ def _norm_chave(valor) -> str:
 
 
 def _normalizar_produto(valor) -> str:
-    """
-    Normaliza o NOME do produto para agrupamento/cruzamento consistente entre
-    VENDAS e COMPRAS: uppercase, sem acentos, sem caracteres especiais,
-    espaços colapsados. O nome legível original é preservado à parte para exibição.
-    """
-    s = _strip_acentos(_sanitizar_nome(valor)).upper()
+    """Chave de agrupamento por produto (uppercase, sem acentos, sem pontuação)."""
+    s = _strip_acentos(str(valor or "")).upper()
     s = re.sub(r"[^A-Z0-9 ]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
 
 
 # =====================================================================
-# Conversão numérica robusta (pt-BR e en-US)
+# 2) Conversão numérica robusta (pt-BR e en-US)
 # =====================================================================
-def _parse_valor(bruto) -> float | None:
+def _parse_valor(bruto):
     """
-    Converte um único valor monetário/quantidade em float, tolerando:
-    'R$ 1.234,56', '1.234,56', '1234,56', '1,234.56', '1234.56', espaços,
-    NBSP, vazios e hífens. Retorna None quando o valor é ausente/ilegível.
+    Aceita 'R$ 1.234,56', '1.234,56', '1234,56', '1,234.56', '1234.56',
+    '(123,45)', ' - ', '', None — retorna float ou None se irrecuperável.
     """
     if bruto is None:
         return None
@@ -117,21 +121,21 @@ def _parse_valor(bruto) -> float | None:
     if s2 == "":
         return None
 
-    tem_virgula = "," in s2
-    tem_ponto = "." in s2
-    if tem_virgula and tem_ponto:
-        # O separador mais à direita é o decimal.
+    tem_virg = "," in s2
+    tem_pto = "." in s2
+    if tem_virg and tem_pto:
+        # o separador mais à direita é o decimal
         if s2.rfind(",") > s2.rfind("."):
             s2 = s2.replace(".", "").replace(",", ".")
         else:
             s2 = s2.replace(",", "")
-    elif tem_virgula:
-        # Padrão brasileiro: vírgula decimal.
+    elif tem_virg:
+        # padrão BR: vírgula é decimal
         s2 = s2.replace(".", "").replace(",", ".")
-    elif tem_ponto and s2.count(".") > 1:
-        # Múltiplos pontos => separadores de milhar.
+    elif tem_pto and s2.count(".") > 1:
+        # múltiplos pontos => separadores de milhar
         s2 = s2.replace(".", "")
-    # ponto único => decimal (mantém)
+    # único ponto = decimal => mantém
 
     try:
         val = float(s2)
@@ -141,72 +145,42 @@ def _parse_valor(bruto) -> float | None:
 
 
 def _converter_serie(serie: pd.Series) -> pd.Series:
-    """Aplica _parse_valor elemento a elemento, retornando Series de float (NaN p/ ausentes)."""
     return pd.Series([_parse_valor(v) for v in serie], index=serie.index, dtype="float64")
 
 
-def _converter_coluna_obrigatoria(df: pd.DataFrame, coluna: str, nome_arquivo: str) -> pd.Series:
-    """
-    Converte uma coluna obrigatória para número. Se valores NÃO vazios não puderem
-    ser convertidos, falha com erro claro (coluna, arquivo, quantidade, amostras).
-    Valores genuinamente vazios viram 0.0 (ausência, não erro).
-    """
-    orig = df[coluna].map(lambda x: str(x))
-    num = _converter_serie(df[coluna])
-    nao_vazio = orig.map(lambda x: x.strip().lower() not in ("", "nan", "none", "-", "--"))
-    problematicos = nao_vazio & num.isna()
-    n = int(problematicos.sum())
-    if n > 0:
-        amostras = orig[problematicos].head(5).tolist()
-        raise ETLValidationError(
-            f"A coluna '{coluna}' do arquivo '{nome_arquivo}' tem {n} valor(es) "
-            f"não numéricos que impedem o cálculo confiável dos KPIs. "
-            f"Exemplos: {amostras}"
-        )
-    return num.fillna(0.0)
-
-
 # =====================================================================
-# Camada 1: leitura defensiva e inteligente
+# 3) Leitura defensiva (.xlsx / .csv) sem assumir cabeçalho
 # =====================================================================
-def _detectar_e_ler_arquivo(caminho_arquivo: str) -> pd.DataFrame:
-    """
-    Detecta a extensão e lê o arquivo BRUTO (header=None, tudo string) para que
-    as camadas de limpeza localizem o cabeçalho real. Falha com erro claro em vez
-    de inventar dados quando o arquivo é ilegível.
-    """
+def _ler_bruto(caminho_arquivo: str) -> pd.DataFrame:
+    """Lê o arquivo como matriz crua (header=None, dtype=str)."""
     if not os.path.exists(caminho_arquivo):
         raise ETLValidationError(f"Arquivo não encontrado: {caminho_arquivo}")
 
     ext = os.path.splitext(caminho_arquivo)[1].lower()
+    nome = os.path.basename(caminho_arquivo)
 
     if ext == ".xlsx":
         try:
             return pd.read_excel(caminho_arquivo, dtype=str, header=None, engine="openpyxl")
         except Exception as e:
             raise ETLValidationError(
-                f"Falha ao ler o arquivo .xlsx '{caminho_arquivo}' com openpyxl. "
-                f"Erro original: {e}"
+                f"Falha ao ler .xlsx '{nome}' (openpyxl). Erro: {e}"
             )
 
     if ext == ".xls":
-        # Suporte a .xls só existe se 'xlrd' estiver instalado. Não anunciamos
-        # suporte que o sistema não consegue cumprir.
         try:
             import xlrd  # noqa: F401
         except ImportError:
             raise ETLValidationError(
-                f"Formato .xls não suportado: a dependência 'xlrd' não está instalada "
-                f"neste projeto. Converta '{os.path.basename(caminho_arquivo)}' para .xlsx ou .csv."
+                f"Formato .xls não suportado (dependência 'xlrd' ausente). "
+                f"Converta '{nome}' para .xlsx ou .csv."
             )
         try:
             return pd.read_excel(caminho_arquivo, dtype=str, header=None, engine="xlrd")
         except Exception as e:
-            raise ETLValidationError(
-                f"Falha ao ler o arquivo .xls '{caminho_arquivo}'. Erro original: {e}"
-            )
+            raise ETLValidationError(f"Falha ao ler .xls '{nome}': {e}")
 
-    # CSV / texto: fallbacks controlados de encoding e separador.
+    # CSV/TXT/extensão desconhecida: fallback de encoding + separador
     ultimo_erro = None
     for enc in ENCODINGS:
         for sep in SEPARADORES:
@@ -220,12 +194,11 @@ def _detectar_e_ler_arquivo(caminho_arquivo: str) -> pd.DataFrame:
             except Exception as e:
                 ultimo_erro = e
 
-    # Último recurso: ignora bytes inválidos, mas registra alerta técnico.
+    # Último recurso: ignora bytes inválidos
     for sep in SEPARADORES:
         try:
             logger.warning(
-                "Leitura de '%s' usando encoding_errors='ignore' como último recurso "
-                "(possível perda de caracteres). Separador testado: %r.", caminho_arquivo, sep
+                "Leitura de '%s' com encoding_errors='ignore' (último recurso). Sep=%r", nome, sep
             )
             df = pd.read_csv(
                 caminho_arquivo, dtype=str, header=None, sep=sep,
@@ -237,9 +210,9 @@ def _detectar_e_ler_arquivo(caminho_arquivo: str) -> pd.DataFrame:
             ultimo_erro = e
 
     raise ETLValidationError(
-        "Não foi possível ler o arquivo de texto/CSV.\n"
-        f"  Arquivo: {caminho_arquivo}\n"
-        f"  Extensão: {ext or '(sem extensão)'}\n"
+        "Não foi possível ler o arquivo.\n"
+        f"  Arquivo: {nome}\n"
+        f"  Extensão: {ext or '(sem)'}\n"
         f"  Encodings testados: {list(ENCODINGS)}\n"
         f"  Separadores testados: {[repr(s) for s in SEPARADORES]}\n"
         f"  Erro original: {ultimo_erro}"
@@ -247,264 +220,301 @@ def _detectar_e_ler_arquivo(caminho_arquivo: str) -> pd.DataFrame:
 
 
 # =====================================================================
-# Camadas 2/3: localização de cabeçalho e limpeza
+# 4) Dicionário de aliases — mapeamento DINÂMICO por substring
 # =====================================================================
-def _is_data_marker(celula) -> bool:
-    """True se a célula da 1ª coluna parece ser DADO (código numérico ou data), não cabeçalho."""
-    if celula is None:
-        return False
-    s = str(celula).strip()
-    if s.lower() in ("", "nan", "none"):
-        return False
-    if re.search(r"\d{1,4}[-/]\d{1,2}[-/]\d{1,4}", s):  # data
-        return True
-    if re.fullmatch(r"[0-9.,]+", s):  # código/valor puramente numérico
-        return True
-    return False
+# IMPORTANTE: a ORDEM dos canônicos importa. Fragmentos mais ESPECÍFICOS
+# devem vir ANTES de fragmentos mais GENÉRICOS, para evitar colisões
+# (ex.: "Qtde Estoque" cair em quantidade, "Vr Total Produtos" cair em
+# valor_nf). Todos os fragmentos estão escritos JÁ na forma normalizada
+# (sem acento, minúsculas, sem pontuação, sem espaços extras).
+
+ALIAS_VENDAS = {
+    "codigo":      ["codigo", "cod produto", "cod barras", "cod "],
+    "produto":     ["nome do produto", "descricao do produto", "produto", "descricao"],
+    # estoque ANTES de quantidade — "Qtde Estoque" não pode cair em qtd
+    "estoque":     ["estoque atual", "saldo estoque", "saldo atual", "estoque"],
+    # custo ANTES de venda — só por consistência
+    "valor_custo": ["total custo", "vr custo", "vlr custo", "valor custo",
+                    "custo total", "custo"],
+    "valor_venda": ["total venda", "total vendas", "vr venda", "vlr venda",
+                    "valor total venda", "valor venda"],
+    "quantidade":  ["qtde vend", "qtde vendida", "quantidade vendida",
+                    "qtd vend", "qtde", "quantidade", "qtd"],
+    # 'lucro' é DETECTADO defensivamente (reservar a coluna) e DESCARTADO
+    # no cálculo. NEXO/PI2 NÃO usa lucro/CMV como KPI — terminologia oficial.
+    "lucro":       ["lucro"],
+}
+
+ALIAS_COMPRAS = {
+    "data":           ["data emissao", "data nf", "data compra", "data"],
+    "fornecedor":     ["razao social fornecedor", "nome fornecedor", "fornecedor"],
+    # produtos_total ANTES de valor_nf — "Vr Total Produtos" é mais específico
+    "produtos_total": ["total produtos", "vr total produtos", "vr produtos",
+                       "valor produtos"],
+    "valor_nf":       ["valor nf", "vr total", "total nf", "valor total",
+                       "valor nota", "vr nota"],
+    # Colunas item-a-item (raras em relatórios NF-level reais):
+    "produto":        ["nome do produto", "descricao", "produto"],
+    "qtde_comprada":  ["qtde comprada", "quantidade comprada", "qtde compra", "qtde"],
+}
 
 
-def _localizar_idx_cabecalho(df: pd.DataFrame, palavras: list[str]) -> int:
+def _mapear_cabecalho(linha_norm: list, aliases: dict) -> dict:
     """
-    Índice da 1ª linha-âncora de cabeçalho: a 1ª coluna deve COMEÇAR por uma
-    palavra-âncora (token exato) e ser curta. Evita casar com linhas de filtro
-    longas do PDV (ex.: 'Produtos ....: -Todos até -Todos').
+    Para cada COLUNA da linha (já normalizada), encontra o 1º canônico cujo
+    fragmento aparece como substring. Cada canônico é claimed no máximo 1x
+    (1ª coluna vence — proteção contra duplicatas no relatório).
     """
-    for i in range(len(df)):
-        v = _norm_chave(df.iloc[i, 0])
-        if not v:
+    mapa: dict = {}
+    for idx, chave in enumerate(linha_norm):
+        if not chave:
             continue
-        tokens = v.split()
-        if tokens and tokens[0] in palavras and len(v) <= 25:
-            return i
-    return -1
+        for canonico, fragmentos in aliases.items():
+            if canonico in mapa:
+                continue
+            for frag in fragmentos:
+                if frag in chave:
+                    mapa[canonico] = idx
+                    break
+            if canonico in mapa and mapa[canonico] == idx:
+                break
+    return mapa
 
 
-def _montar_cabecalho(df_raw: pd.DataFrame, idx_header: int) -> pd.DataFrame:
+def _detectar_cabecalho(df_bruto: pd.DataFrame, aliases: dict, valida_fn,
+                        janela: int = 60):
     """
-    Reconstrói o cabeçalho a partir da linha-âncora, dobrando linhas subsequentes
-    de sub-cabeçalho (caso do PDV, que quebra títulos em 2 linhas) até a 1ª linha
-    de dados. Retorna o DataFrame de dados com nomes de coluna sanitizados.
+    Localiza a linha de cabeçalho na janela inicial:
+      1) Cabeçalho de UMA linha — escolhe a que mapeia MAIS canônicos
+         entre as que passam por `valida_fn` (cobertura mínima).
+      2) Cabeçalho COMPOSTO (2 linhas adjacentes concatenadas) — fallback
+         para PDVs que quebram títulos em duas linhas.
+    Retorna (idx_cabecalho, mapa_canonico, linhas_cabecalho).
     """
-    n = len(df_raw)
-    linhas_header = [idx_header]
-    j = idx_header + 1
-    while j < n and (j - idx_header) <= 3:
-        if _is_data_marker(df_raw.iloc[j, 0]):
-            break
-        linhas_header.append(j)
-        j += 1
-    idx_data = j
-    if idx_data >= n:
-        raise ETLValidationError("Cabeçalho localizado, mas nenhuma linha de dados encontrada após ele.")
+    limite = min(janela, len(df_bruto))
+    melhor = None
 
-    combinado = []
-    for col in range(df_raw.shape[1]):
-        tokens = []
-        for r in linhas_header:
-            s = _sanitizar_nome(df_raw.iloc[r, col])
-            if s and s.lower() != "nan":
-                tokens.append(s)
-        combinado.append(" ".join(tokens).strip())
+    # 1) cabeçalho de 1 linha
+    for i in range(limite):
+        linha = [_norm_chave(v) for v in df_bruto.iloc[i].tolist()]
+        mapa = _mapear_cabecalho(linha, aliases)
+        if valida_fn(mapa):
+            if melhor is None or len(mapa) > len(melhor[1]):
+                melhor = (i, mapa, 1)
+    if melhor is not None:
+        return melhor
 
-    df = df_raw.iloc[idx_data:].copy()
-    df.columns = combinado
-    return df
+    # 2) cabeçalho composto (2 linhas)
+    for i in range(limite - 1):
+        l1 = [_norm_chave(v) for v in df_bruto.iloc[i].tolist()]
+        l2 = [_norm_chave(v) for v in df_bruto.iloc[i + 1].tolist()]
+        # zip por menor comprimento — colunas extras ficam de fora
+        comb = [(a + " " + b).strip() for a, b in zip(l1, l2)]
+        mapa = _mapear_cabecalho(comb, aliases)
+        if valida_fn(mapa):
+            if melhor is None or len(mapa) > len(melhor[1]):
+                melhor = (i, mapa, 2)
 
-
-def _aplicar_mapa(df: pd.DataFrame, mapa: dict[str, str]) -> pd.DataFrame:
-    """
-    Renomeia colunas para nomes canônicos via sinônimos normalizados e descarta
-    colunas sem nome. Mantém o mapeamento 1:1 (1º match vence) e preserva colunas
-    extras (não usadas) sem quebrar.
-    """
-    renomear = {}
-    usados = set()
-    manter = []
-    vistos = set()
-    for col in df.columns:
-        nome = _sanitizar_nome(col)
-        if nome == "" or nome in vistos:
-            continue  # descarta colunas vazias e nomes duplicados
-        vistos.add(nome)
-        manter.append(col)
-        chave = _norm_chave(col)
-        if chave in mapa and mapa[chave] not in usados:
-            renomear[col] = mapa[chave]
-            usados.add(mapa[chave])
-    df = df.loc[:, manter].rename(columns=renomear)
-    return df
-
-
-MAPA_VENDAS = {
-    "codigo": "Codigo",
-    "nome do produto": "Produto",
-    "produto": "Produto",
-    "descricao": "Produto",
-    "qtde vend": "Qtde Vend",
-    "qtde": "Qtde Vend",
-    "quantidade": "Qtde Vend",
-    "qtd": "Qtde Vend",
-    "total venda": "Total Venda",
-    "total vendas": "Total Venda",
-    "valor total": "Total Venda",
-    "total custo": "Total Custo",
-    "custo total": "Total Custo",
-    "estoque": "Estoque Atual",
-    "estoque atual": "Estoque Atual",
-}
-
-MAPA_COMPRAS = {
-    "data da compra": "Data Compra",
-    "data compra": "Data Compra",
-    "fornecedor": "Fornecedor",
-    "vr total produtos": "Vr Total Produtos",
-    "vr total": "Vr Total Produtos",
-    "valor nf": "Valor Nf",
-    "numero nf": "Numero NF",
-    # Sinônimos de produto/quantidade: usados SE o relatório de compras os tiver
-    # (permite calcular o saldo parado por produto quando os dados existirem).
-    "produto": "Produto",
-    "nome do produto": "Produto",
-    "descricao": "Produto",
-    "qtde comprada": "Qtde Comprada",
-    "qtde compra": "Qtde Comprada",
-    "qtde": "Qtde Comprada",
-    "quantidade": "Qtde Comprada",
-}
-
-# Linhas de rodapé/lixo a descartar (totais, movimentação, marca d'água do PDV).
-PADRAO_LIXO = re.compile(r"(?:totais|total geral|movimenta|desconto|software|labsofti)", re.IGNORECASE)
-
-
-def limpar_vendas(df_raw: pd.DataFrame, nome_arquivo: str) -> pd.DataFrame:
-    """Camada 2: localiza cabeçalho do Giro de Vendas, sanitiza e remove lixo/rodapés."""
-    if df_raw.empty:
-        raise ETLValidationError(f"O arquivo de vendas '{nome_arquivo}' está totalmente vazio.")
-    idx = _localizar_idx_cabecalho(df_raw, ["codigo", "produto"])
-    if idx < 0:
+    if melhor is None:
         raise ETLValidationError(
-            f"Não foi possível localizar o cabeçalho do relatório de VENDAS em "
-            f"'{nome_arquivo}' (esperado uma linha com 'Codigo'/'Código' ou 'Produto')."
+            "Não foi possível localizar a linha de cabeçalho nas "
+            f"primeiras {limite} linhas. Verifique se o relatório foi exportado "
+            "em formato tabular do PDV (com cabeçalho identificável)."
         )
-    df = _montar_cabecalho(df_raw, idx)
-    df = _aplicar_mapa(df, MAPA_VENDAS)
-
-    if "Produto" in df.columns:
-        prod = df["Produto"].map(lambda x: str(x).strip())
-        prod_norm = df["Produto"].map(_norm_chave)
-        valido = prod.str.lower().map(lambda x: x not in ("", "nan", "none"))
-        nao_header = ~prod_norm.isin(["nome do produto", "produto", "descricao"])
-        mask = valido & nao_header & ~prod.str.contains(PADRAO_LIXO, na=False)
-        if "Codigo" in df.columns:
-            # Quebras de página reimprimem o cabeçalho ('Codigo') no meio dos dados.
-            mask = mask & ~df["Codigo"].map(_norm_chave).isin(["codigo"])
-        df = df[mask]
-    return df.reset_index(drop=True)
-
-
-def limpar_compras(df_raw: pd.DataFrame, nome_arquivo: str) -> pd.DataFrame:
-    """Camada 3: localiza cabeçalho da Posição de Compras, sanitiza e remove rodapé de totais."""
-    if df_raw.empty:
-        raise ETLValidationError(f"O arquivo de compras '{nome_arquivo}' está totalmente vazio.")
-    idx = _localizar_idx_cabecalho(df_raw, ["data", "fornecedor"])
-    if idx < 0:
-        raise ETLValidationError(
-            f"Não foi possível localizar o cabeçalho do relatório de COMPRAS em "
-            f"'{nome_arquivo}' (esperado uma linha com 'Data'/'Fornecedor')."
-        )
-    df = _montar_cabecalho(df_raw, idx)
-    df = _aplicar_mapa(df, MAPA_COMPRAS)
-
-    # Remove rodapé "Totais geral" e similares (1ª coluna disponível).
-    if len(df.columns) > 0:
-        col_ref = "Data Compra" if "Data Compra" in df.columns else df.columns[0]
-        df = df[~df[col_ref].astype(str).str.contains(PADRAO_LIXO, na=False)]
-    return df.reset_index(drop=True)
+    return melhor
 
 
 # =====================================================================
-# Cálculo dos KPIs em memória (sem banco)
+# 5) DataFrame canônico + limpeza de linhas-lixo
+# =====================================================================
+# Linhas-rodapé / marca d'água típicas de PDV (regex case-insensitive).
+_PADRAO_LIXO = re.compile(
+    r"\b(?:total geral|totais|subtotal|movimenta|labsofti|software|"
+    r"resumo|periodo|usuario|filtro|impresso|pagina)\b",
+    re.IGNORECASE,
+)
+
+# Strings que, se aparecerem como valor da coluna-chave, indicam que aquela
+# linha é um cabeçalho REPETIDO (quebra de página do PDV) — devem ser puladas.
+_CABECALHOS_REPETIDOS = {
+    "codigo", "produto", "nome do produto", "descricao",
+    "data", "data emissao", "data nf", "fornecedor",
+    "valor nf", "vr total", "total nf",
+}
+
+
+def _construir_df_canonico(df_bruto: pd.DataFrame, idx_cab: int,
+                           mapa: dict, linhas_cab: int) -> pd.DataFrame:
+    """Recorta a partir da 1ª linha de dados e renomeia para nomes canônicos."""
+    inicio = idx_cab + linhas_cab
+    if inicio >= len(df_bruto):
+        raise ETLValidationError("Cabeçalho localizado, mas sem linhas de dados após ele.")
+    bloco = df_bruto.iloc[inicio:].reset_index(drop=True)
+    out = pd.DataFrame(index=bloco.index)
+    for nome_canonico, col_idx in mapa.items():
+        if col_idx < bloco.shape[1]:
+            out[nome_canonico] = bloco.iloc[:, col_idx].values
+        else:
+            out[nome_canonico] = pd.Series([None] * len(bloco))
+    return out
+
+
+def _filtrar_linhas_validas(df: pd.DataFrame, chave: str) -> pd.DataFrame:
+    """
+    Descarta linhas onde a coluna-chave está vazia, é rodapé/marca d'água, OU
+    é um cabeçalho reimpresso (quebra de página típica do PDV).
+    """
+    if chave not in df.columns:
+        raise ETLValidationError(f"Coluna-chave '{chave}' ausente após o mapeamento.")
+    bruto = df[chave].map(lambda v: "" if v is None else str(v).strip())
+    valido = bruto.map(lambda v: v.lower() not in ("", "nan", "none"))
+    nao_rodape = ~bruto.str.contains(_PADRAO_LIXO, na=False)
+    nao_cabec = ~bruto.map(_norm_chave).isin(_CABECALHOS_REPETIDOS)
+    return df[valido & nao_rodape & nao_cabec].reset_index(drop=True)
+
+
+# =====================================================================
+# 6) Carregadores específicos (Vendas / Compras)
+# =====================================================================
+def _validar_vendas(mapa: dict) -> bool:
+    return all(k in mapa for k in ("produto", "quantidade", "valor_venda"))
+
+
+def _validar_compras(mapa: dict) -> bool:
+    if "fornecedor" not in mapa:
+        return False
+    return "valor_nf" in mapa or "produtos_total" in mapa
+
+
+def carregar_vendas(caminho: str) -> pd.DataFrame:
+    nome = os.path.basename(caminho)
+    bruto = _ler_bruto(caminho)
+    if bruto.empty:
+        raise ETLValidationError(f"O arquivo de vendas '{nome}' está totalmente vazio.")
+
+    idx, mapa, linhas_cab = _detectar_cabecalho(bruto, ALIAS_VENDAS, _validar_vendas)
+    df = _construir_df_canonico(bruto, idx, mapa, linhas_cab)
+    df = _filtrar_linhas_validas(df, "produto")
+
+    # Conversões numéricas — NaN vira 0 (linha sem qtd/valor não impacta KPI)
+    df["quantidade"] = _converter_serie(df["quantidade"]).fillna(0.0)
+    df["valor_venda"] = _converter_serie(df["valor_venda"]).fillna(0.0)
+    if "valor_custo" in df.columns:
+        df["valor_custo"] = _converter_serie(df["valor_custo"]).fillna(0.0)
+    if "estoque" in df.columns:
+        df["estoque"] = _converter_serie(df["estoque"]).fillna(0.0)
+
+    # 'lucro' é DETECTADO e DESCARTADO — terminologia NEXO proíbe usar.
+    if "lucro" in df.columns:
+        df = df.drop(columns=["lucro"])
+
+    df["_prod_norm"] = df["produto"].map(_normalizar_produto)
+    df = df[df["_prod_norm"] != ""].reset_index(drop=True)
+    if df.empty:
+        raise ETLValidationError(
+            f"Relatório de VENDAS '{nome}' sem nomes de produto válidos após a limpeza."
+        )
+    return df
+
+
+def carregar_compras(caminho: str):
+    """
+    Retorna (df_compras, coluna_valor_usada).
+    `coluna_valor_usada` ∈ {"produtos_total", "valor_nf"} — produtos_total
+    tem preferência (valor "puro" dos itens; valor_nf inclui frete/imposto).
+    """
+    nome = os.path.basename(caminho)
+    bruto = _ler_bruto(caminho)
+    if bruto.empty:
+        raise ETLValidationError(f"O arquivo de compras '{nome}' está totalmente vazio.")
+
+    idx, mapa, linhas_cab = _detectar_cabecalho(bruto, ALIAS_COMPRAS, _validar_compras)
+    df = _construir_df_canonico(bruto, idx, mapa, linhas_cab)
+    df = _filtrar_linhas_validas(df, "fornecedor")
+
+    if "produtos_total" in df.columns:
+        coluna_valor = "produtos_total"
+    elif "valor_nf" in df.columns:
+        coluna_valor = "valor_nf"
+    else:
+        raise ETLValidationError(
+            f"Relatório de COMPRAS '{nome}' sem coluna de valor reconhecida "
+            "('Total Produtos' nem 'Valor NF' encontradas)."
+        )
+    df[coluna_valor] = _converter_serie(df[coluna_valor]).fillna(0.0)
+    df = df[df[coluna_valor] > 0].reset_index(drop=True)
+
+    if "qtde_comprada" in df.columns:
+        df["qtde_comprada"] = _converter_serie(df["qtde_comprada"]).fillna(0.0)
+    if "produto" in df.columns:
+        df["_prod_norm"] = df["produto"].map(_normalizar_produto)
+    return df, coluna_valor
+
+
+# =====================================================================
+# 7) Cálculo dos KPIs em memória (sem tocar no banco)
 # =====================================================================
 def calcular_kpis_em_memoria(caminho_vendas: str, caminho_compras: str) -> ResultadoETL:
-    """
-    Lê, limpa e calcula todos os KPIs/telemetria em memória, SEM persistir nada.
-    Levanta ETLValidationError com mensagem clara em caso de problema de dados.
-    """
     nome_v = os.path.basename(caminho_vendas)
-    nome_c = os.path.basename(caminho_compras)
 
-    df_v = limpar_vendas(_detectar_e_ler_arquivo(caminho_vendas), nome_v)
-    df_c = limpar_compras(_detectar_e_ler_arquivo(caminho_compras), nome_c)
+    df_v = carregar_vendas(caminho_vendas)
+    df_c, col_valor_c = carregar_compras(caminho_compras)
 
-    colunas_vendas = list(df_v.columns)
-    colunas_compras = list(df_c.columns)
-
-    # --- Validação de colunas obrigatórias de VENDAS (produto, qtd, faturamento) ---
-    obrig_v = ["Produto", "Qtde Vend", "Total Venda"]
-    faltando_v = [c for c in obrig_v if c not in df_v.columns]
-    if faltando_v:
-        raise ETLValidationError(
-            f"Relatório de VENDAS '{nome_v}' sem coluna(s) obrigatória(s): {faltando_v}. "
-            f"Colunas encontradas após sanitização: {colunas_vendas}"
-        )
-    if df_v.empty:
-        raise ETLValidationError(f"Relatório de VENDAS '{nome_v}' sem linhas de produto após a limpeza.")
-
-    # --- Conversão numérica VENDAS ---
-    df_v["_qtde"] = _converter_coluna_obrigatoria(df_v, "Qtde Vend", nome_v)
-    df_v["_fat"] = _converter_coluna_obrigatoria(df_v, "Total Venda", nome_v)
-    df_v["_prod_norm"] = df_v["Produto"].map(_normalizar_produto)
-    df_v = df_v[df_v["_prod_norm"] != ""]
-    if df_v.empty:
-        raise ETLValidationError(f"Relatório de VENDAS '{nome_v}' sem nomes de produto válidos.")
-
-    # --- KPI: faturamento e produtos de destaque (agrupados por produto normalizado) ---
-    grupo_v = (
+    # ---- VENDAS: agregação por produto normalizado ----
+    grupo = (
         df_v.groupby("_prod_norm")
-        .agg(qtde=("_qtde", "sum"), fat=("_fat", "sum"), nome=("Produto", "first"))
+        .agg(qtde=("quantidade", "sum"),
+             fat=("valor_venda", "sum"),
+             nome=("produto", "first"))
         .reset_index()
     )
-    faturamento_total = float(grupo_v["fat"].sum())
+    if grupo.empty:
+        raise ETLValidationError(f"Sem produtos para agregar em '{nome_v}'.")
+    faturamento_total = float(grupo["fat"].sum())
 
-    i_qtd = grupo_v["qtde"].idxmax()
-    produto_mais_vendido_nome = str(grupo_v.loc[i_qtd, "nome"])
-    produto_mais_vendido_quantidade = float(grupo_v.loc[i_qtd, "qtde"])
+    i_qtd = grupo["qtde"].idxmax()
+    prod_norm_mais_vendido = grupo.loc[i_qtd, "_prod_norm"]
+    produto_mais_vendido_nome = str(grupo.loc[i_qtd, "nome"])
+    produto_mais_vendido_quantidade = float(grupo.loc[i_qtd, "qtde"])
 
-    i_fat = grupo_v["fat"].idxmax()
-    produto_maior_faturamento_nome = str(grupo_v.loc[i_fat, "nome"])
-    produto_maior_faturamento_valor = float(grupo_v.loc[i_fat, "fat"])
+    # Maior faturamento: em varejos pequenos qtde e faturamento são fortemente
+    # correlacionados, então o topo dos dois rankings costuma coincidir. Para
+    # evitar a redundância visual ("mesmo produto em dois cards") sem violar a
+    # regra NEXO (lucro/CMV proibidos como KPI), se o produto de maior
+    # faturamento coincidir com o mais vendido mostramos o 2º colocado do
+    # ranking de faturamento (exigindo fat > 0 para não cair em zero falso).
+    # Se sobrar só 1 candidato (relatório com produto único, ou todos os outros
+    # com fat=0), aceitamos a coincidência sem mascarar.
+    ranking_fat = grupo.sort_values("fat", ascending=False)
+    candidatos_fat = ranking_fat[
+        (ranking_fat["_prod_norm"] != prod_norm_mais_vendido) & (ranking_fat["fat"] > 0)
+    ]
+    linha_fat = candidatos_fat.iloc[0] if not candidatos_fat.empty else ranking_fat.iloc[0]
+    produto_maior_faturamento_nome = str(linha_fat["nome"])
+    produto_maior_faturamento_valor = float(linha_fat["fat"])
 
-    # --- COMPRAS: total comprado (nível nota fiscal) ---
-    col_valor_c = next((c for c in ("Vr Total Produtos", "Valor Nf") if c in df_c.columns), None)
-    if col_valor_c is None:
-        raise ETLValidationError(
-            f"Relatório de COMPRAS '{nome_c}' sem coluna de valor "
-            f"('Vr Total Produtos' ou 'Valor Nf'). Colunas encontradas: {colunas_compras}"
-        )
-    df_c["_valc"] = _converter_coluna_obrigatoria(df_c, col_valor_c, nome_c)
-    df_c = df_c[df_c["_valc"] > 0]
-    total_comprado = float(df_c["_valc"].sum())
+    # ---- COMPRAS: total (nível NF) ----
+    total_comprado = float(df_c[col_valor_c].sum())
 
-    # --- Indicador de Pressão de Estoque (saldo estimado compras x vendas) ---
+    # ---- Indicador de Pressão de Estoque ----
     saldo_estimado_compras_vendas = total_comprado - faturamento_total
 
-    alertas: list[str] = []
+    alertas: list = []
 
-    # --- Produto com maior saldo estimado parado (exige produto + quantidade em COMPRAS) ---
+    # ---- Produto com maior saldo estimado parado (só se COMPRAS tem produto+qtde) ----
     produto_maior_saldo_parado_nome = None
     saldo_estimado_parado = None
-    tem_produto_c = "Produto" in df_c.columns
-    tem_qtde_c = "Qtde Comprada" in df_c.columns
-    if tem_produto_c and tem_qtde_c:
-        df_c["_qtdec"] = _converter_coluna_obrigatoria(df_c, "Qtde Comprada", nome_c)
-        df_c["_prod_norm"] = df_c["Produto"].map(_normalizar_produto)
+    tem_prod_c = "produto" in df_c.columns and "_prod_norm" in df_c.columns
+    tem_qtd_c = "qtde_comprada" in df_c.columns
+    if tem_prod_c and tem_qtd_c:
         compras_prod = (
             df_c[df_c["_prod_norm"] != ""]
             .groupby("_prod_norm")
-            .agg(qtde_comprada=("_qtdec", "sum"), nome=("Produto", "first"))
+            .agg(qtde_comprada=("qtde_comprada", "sum"),
+                 nome=("produto", "first"))
             .reset_index()
         )
-        vendas_prod = grupo_v[["_prod_norm", "qtde"]].rename(columns={"qtde": "qtde_vendida"})
+        vendas_prod = grupo[["_prod_norm", "qtde"]].rename(columns={"qtde": "qtde_vendida"})
         cruz = compras_prod.merge(vendas_prod, on="_prod_norm", how="left")
         cruz["qtde_vendida"] = cruz["qtde_vendida"].fillna(0.0)
         cruz["saldo"] = cruz["qtde_comprada"] - cruz["qtde_vendida"]
@@ -512,14 +522,51 @@ def calcular_kpis_em_memoria(caminho_vendas: str, caminho_compras: str) -> Resul
         if not positivos.empty:
             i_saldo = positivos["saldo"].idxmax()
             produto_maior_saldo_parado_nome = str(positivos.loc[i_saldo, "nome"])
-            saldo_estimado_parado = float(positivos.loc[i_saldo, "saldo"])  # em unidades
+            saldo_estimado_parado = float(positivos.loc[i_saldo, "saldo"])
     else:
         alertas.append(
-            "Limitação técnica: o relatório de COMPRAS está em nível de nota fiscal "
-            "(fornecedor/valor) e não traz produto + quantidade comprada. O KPI "
-            "'produto com maior saldo estimado parado' não pôde ser calculado e foi "
-            "persistido como nulo (sem gerar dado enganoso)."
+            "Limitação técnica: o relatório de COMPRAS está em nível de nota "
+            "fiscal (fornecedor/valor) e não traz produto + quantidade comprada. "
+            "O KPI 'produto com maior saldo estimado parado' não pôde ser "
+            "calculado e foi persistido como nulo (sem gerar dado enganoso)."
         )
+
+    # ---- Telemetria (em memória, NÃO persistida — sem campo no DER V4) ----
+    colunas_v = [c for c in df_v.columns if c != "_prod_norm"]
+    colunas_c = [c for c in df_c.columns if c != "_prod_norm"]
+    telemetria = {
+        "coluna_valor_compras": col_valor_c,
+        "colunas_vendas": colunas_v,
+        "colunas_compras": colunas_c,
+        "linhas_vendas": int(len(df_v)),
+        "linhas_compras": int(len(df_c)),
+    }
+
+    # Alerta: saldo de estoque NEGATIVO informado pelo PDV (não é KPI, é sinal)
+    if "estoque" in df_v.columns:
+        n_neg = int((df_v["estoque"] < 0).sum())
+        taxa = n_neg / len(df_v) if len(df_v) else 0.0
+        telemetria["produtos_estoque_pdv_negativo"] = n_neg
+        telemetria["taxa_estoque_pdv_negativo"] = taxa
+        if taxa > 0.10:
+            alertas.append(
+                f"Atenção: {n_neg} produto(s) ({taxa * 100:.1f}%) apresentam saldo "
+                f"de estoque NEGATIVO informado pelo PDV — possível inconsistência "
+                f"de registro no sistema do cliente."
+            )
+
+    # Alerta: venda abaixo do custo informado pelo PDV (observação, NÃO margem)
+    if "valor_custo" in df_v.columns:
+        abaixo = (df_v["valor_custo"] > 0) & (df_v["valor_venda"] < df_v["valor_custo"])
+        n_abaixo = int(abaixo.sum())
+        telemetria["itens_venda_abaixo_custo_pdv"] = n_abaixo
+        if n_abaixo > 0:
+            alertas.append(
+                f"Alerta de custo informado pelo PDV: {n_abaixo} item(ns) tiveram "
+                f"valor total de venda inferior ao custo total informado pelo PDV no "
+                f"período. É um sinal extraído da coluna bruta de custo do PDV, NÃO "
+                f"um cálculo contábil de margem."
+            )
 
     kpis = {
         "faturamento_total": faturamento_total,
@@ -532,42 +579,6 @@ def calcular_kpis_em_memoria(caminho_vendas: str, caminho_compras: str) -> Resul
         "produto_maior_saldo_parado_nome": produto_maior_saldo_parado_nome,
         "saldo_estimado_parado": saldo_estimado_parado,
     }
-
-    # --- Telemetria (em memória, NÃO persistida — sem campo no DER V4) ---
-    telemetria = {
-        "coluna_valor_compras": col_valor_c,
-        "colunas_vendas": colunas_vendas,
-        "colunas_compras": colunas_compras,
-        "linhas_vendas": int(len(df_v)),
-        "linhas_compras": int(len(df_c)),
-    }
-
-    # Saldo de estoque informado pelo PDV (coluna bruta, opcional).
-    if "Estoque Atual" in df_v.columns:
-        est = _converter_serie(df_v["Estoque Atual"]).fillna(0.0)
-        n_neg = int((est < 0).sum())
-        taxa = n_neg / len(df_v) if len(df_v) else 0.0
-        telemetria["produtos_estoque_pdv_negativo"] = n_neg
-        telemetria["taxa_estoque_pdv_negativo"] = taxa
-        if taxa > 0.10:
-            alertas.append(
-                f"Atenção: {n_neg} produto(s) ({taxa * 100:.1f}%) apresentam saldo de estoque "
-                f"NEGATIVO informado pelo PDV — possível inconsistência de registro no sistema do cliente."
-            )
-
-    # Alerta de custo informado pelo PDV (coluna bruta, opcional — NÃO é margem/lucro).
-    if "Total Custo" in df_v.columns:
-        custo = _converter_serie(df_v["Total Custo"]).fillna(0.0)
-        abaixo = (custo > 0) & (df_v["_fat"].values < custo.values)
-        n_abaixo = int(abaixo.sum())
-        telemetria["itens_venda_abaixo_custo_pdv"] = n_abaixo
-        if n_abaixo > 0:
-            alertas.append(
-                f"Alerta de custo informado pelo PDV: {n_abaixo} item(ns) tiveram valor total "
-                f"de venda inferior ao custo total informado pelo PDV no período. É um sinal "
-                f"extraído da coluna bruta de custo do PDV, não um cálculo contábil de margem."
-            )
-
     return ResultadoETL(
         sucesso=True,
         mensagem="Cálculo concluído em memória.",
@@ -578,10 +589,9 @@ def calcular_kpis_em_memoria(caminho_vendas: str, caminho_compras: str) -> Resul
 
 
 # =====================================================================
-# Persistência (apenas KPIs finais) e orquestrador oficial
+# 8) Persistência (somente KPIs finais) + orquestrador oficial
 # =====================================================================
 def _persistir_indicadores(db_session, id_analise: int, kpis: dict) -> None:
-    """Insere/atualiza SOMENTE os KPIs consolidados em indicador_analise (via ORM)."""
     indicador = db_session.execute(
         select(IndicadorAnalise).where(IndicadorAnalise.id_analise == id_analise)
     ).scalar_one_or_none()
@@ -604,12 +614,12 @@ def _persistir_indicadores(db_session, id_analise: int, kpis: dict) -> None:
     indicador.data_geracao = datetime.utcnow()
 
 
-def processar_arquivos_analise(caminho_vendas: str, caminho_compras: str, id_analise: int, db_session) -> ResultadoETL:
+def processar_arquivos_analise(caminho_vendas: str, caminho_compras: str,
+                               id_analise: int, db_session) -> ResultadoETL:
     """
-    Orquestrador oficial (assinatura imutável). Calcula os KPIs em memória e
-    persiste APENAS os KPIs finais. NÃO comita (quem chama controla a transação)
-    e NÃO persiste linhas processadas. Em falha, retorna sucesso=False sem gravar
-    indicadores parciais.
+    Orquestrador oficial (assinatura imutável). Calcula em memória e persiste
+    APENAS os KPIs finais. NÃO comita (caller controla transação) e NÃO
+    persiste linhas processadas. Em falha, retorna sucesso=False sem gravar.
     """
     try:
         resultado = calcular_kpis_em_memoria(caminho_vendas, caminho_compras)
@@ -619,7 +629,9 @@ def processar_arquivos_analise(caminho_vendas: str, caminho_compras: str, id_ana
         )
     except ETLValidationError as e:
         logger.warning("Validação do ETL falhou: %s", e)
-        return ResultadoETL(sucesso=False, mensagem=str(e), kpis={}, telemetria={}, alertas=[])
+        return ResultadoETL(sucesso=False, mensagem=str(e),
+                            kpis={}, telemetria={}, alertas=[])
     except Exception as e:  # noqa: BLE001
         logger.exception("Erro inesperado no motor de ETL")
-        return ResultadoETL(sucesso=False, mensagem=f"Erro interno do ETL: {e}", kpis={}, telemetria={}, alertas=[])
+        return ResultadoETL(sucesso=False, mensagem=f"Erro interno do ETL: {e}",
+                            kpis={}, telemetria={}, alertas=[])

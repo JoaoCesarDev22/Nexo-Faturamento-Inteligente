@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Como aderir — NEXO{% endblock %}
+{% block page_title %}Como aderir{% endblock %}
+
+{% block content %}
+{# A página herda o tema Hélio Dark da base.html. Para visitante (não autenticado)
+   ela renderiza dentro do .auth-wrap centralizado; para usuário autenticado,
+   dentro do layout com sidebar. O conteúdo abaixo funciona bem nos dois
+   wrappings porque é um único bloco de largura limitada centralizado. #}
+<div class="auth-card" style="max-width: 720px; margin: 0 auto; text-align: left;">
+    <div class="auth-brand" style="text-align: center;">
+        <div class="auth-logo">
+            <img src="{{ url_for('static', filename='img/nexo-logo.jpeg') }}" alt="Logo NEXO">
+        </div>
+        <p class="auth-eyebrow">NEXO <span>Faturamento Inteligente</span></p>
+        <div>
+            <h1 class="auth-title">Como obter acesso ao Portal NEXO</h1>
+            <p class="auth-sub">O onboarding é feito sob medida pela nossa equipe</p>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <p>
+            O cadastramento de uma nova empresa cliente e o setup inicial do banco de dados do NEXO
+            são realizados <strong>sob medida</strong> pela nossa equipe de engenharia de dados.
+            Não há autocadastro — cada loja é configurada individualmente, com atenção ao contexto
+            do PDV, ao volume de relatórios e ao plano contratado.
+        </p>
+
+        <p class="mb-2"><strong>O processo é direto e consultivo:</strong></p>
+        <ol class="mb-3" style="padding-left: 1.4rem; line-height: 1.65;">
+            <li class="mb-2">
+                <strong>Contato inicial via WhatsApp.</strong>
+                Você nos envia uma mensagem apresentando a sua loja
+                (segmento, cidade, qual PDV usa) e nós retornamos no mesmo dia útil.
+            </li>
+            <li class="mb-2">
+                <strong>Reunião online de alinhamento estratégico.</strong>
+                Em ~30 minutos entendemos o seu cenário, a frequência de análise ideal
+                (mensal ou quinzenal) e qual plano — Bronze, Prata ou Ouro — faz sentido
+                para o seu momento.
+            </li>
+            <li class="mb-2">
+                <strong>Setup técnico pela equipe NEXO.</strong>
+                Cuidamos do cadastro da empresa, da criação do usuário cliente e da
+                configuração das primeiras análises. Você recebe as credenciais de
+                acesso por canal seguro.
+            </li>
+        </ol>
+
+        <p class="mb-0" style="color: var(--text-muted, #9aa0b7); font-size: 0.92rem;">
+            Após o setup, todo o fluxo (upload de relatórios, processamento, dashboard
+            e devolutiva estratégica) acontece neste portal.
+        </p>
+    </div>
+
+    {# ---------------- CTAs principais (canais oficiais) ----------------
+       Os links abrem no canal real do time comercial. Os valores abaixo
+       são placeholders óbvios — substituir pelos canais oficiais antes
+       do go-live. #}
+    <div class="mb-4 d-flex flex-column flex-md-row gap-2">
+        <a href="https://wa.me/5511999999999"
+           class="btn-nexo w-100 justify-content-center"
+           target="_blank" rel="noopener">
+            <i class="bi bi-whatsapp"></i> Falar pelo WhatsApp
+        </a>
+        <a href="mailto:contato@nexofaturamento.com.br"
+           class="btn-ghost w-100 justify-content-center">
+            <i class="bi bi-envelope"></i> Enviar e-mail
+        </a>
+    </div>
+
+    <hr style="border-color: rgba(255,255,255,0.08); margin: 24px 0;">
+
+    {# ---------------- Navegação de retorno ---------------- #}
+    <div class="d-flex flex-column flex-sm-row gap-2 justify-content-center">
+        <a href="{{ url_for('auth.login') }}" class="btn-ghost btn-sm-x">
+            <i class="bi bi-box-arrow-in-right"></i> Voltar para o Login
+        </a>
+        <a href="{{ url_for('index') }}" class="btn-ghost btn-sm-x">
+            <i class="bi bi-house"></i> Voltar para a Página Inicial
+        </a>
+    </div>
+</div>
+
+{% if not current_user.is_authenticated %}
+<p class="auth-tagline">Nexo: inteligência que impulsiona seu faturamento.</p>
+{% endif %}
+{% endblock %}

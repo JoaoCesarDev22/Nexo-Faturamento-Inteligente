@@ -75,15 +75,19 @@
 </div>
 {% endif %}
 
-{# ---------------- Observações do processamento (alertas de limitação técnica e telemetria) ---------------- #}
+{# ---------------- Observações do processamento (alertas de limitação técnica e telemetria) ----------------
+   Auto-hide em 9s via data-auto-dismiss-ms (handler vive na base.html). O fade
+   suave é o nativo do Bootstrap (.fade + .show -> transition: opacity ~350ms).
+   O botão "X" continua funcionando para fechamento manual antecipado. #}
 {% if resultado.alertas %}
-<div class="alert alert-warning">
+<div class="alert alert-warning alert-dismissible fade show" role="alert" data-auto-dismiss-ms="9000">
     <strong><i class="bi bi-exclamation-triangle"></i> Observações do processamento</strong>
     <ul class="mb-0 mt-2">
         {% for alerta in resultado.alertas %}
         <li>{{ alerta }}</li>
         {% endfor %}
     </ul>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
 </div>
 {% endif %}
 

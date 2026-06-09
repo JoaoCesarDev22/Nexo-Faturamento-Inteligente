@@ -1,0 +1,647 @@
+/* ============================================================
+   NEXO — Faturamento Inteligente · Landing Page
+   ============================================================
+   Tema Hélio Dark. Paleta espelha o design system interno do
+   portal (static/css/nexo.css), mas com tokens próprios para a
+   landing ficar standalone — não depende de ordem de carga do
+   nexo.css.
+
+   Stack visual:
+   - Variáveis CSS (custom properties) para a paleta
+   - Grid + flex (sem framework além do Bootstrap básico do CDN)
+   - Gradientes radiais sutis para hero/CTA
+   - Transições em hover (transform + box-shadow)
+   - Tipografia: Inter (texto) + JetBrains Mono (números)
+   ============================================================ */
+
+:root {
+  /* ---- Backgrounds (escuros, espelhando nexo.css) ---- */
+  --nexo-bg:        #08080d;
+  --nexo-bg-2:      #0c0c14;
+  --nexo-surface:   #13131d;
+  --nexo-surface-2: #181824;
+  --nexo-surface-3: #20202f;
+
+  /* ---- Texto ---- */
+  --nexo-text:      #e8e9f0;
+  --nexo-text-2:    #9aa0b7;
+  --nexo-text-3:    #6a7088;
+
+  /* ---- Brand / accent ---- */
+  --nexo-accent:     #a855f7;
+  --nexo-accent-2:   #8b5cf6;
+  --nexo-accent-3:   #7c3aed;
+  --nexo-accent-soft: rgba(168, 85, 247, 0.14);
+  --nexo-accent-glow: rgba(168, 85, 247, 0.45);
+
+  /* ---- Status ---- */
+  --nexo-success: #22c55e;
+  --nexo-warning: #f59e0b;
+  --nexo-danger:  #ef4444;
+  --nexo-info:    #38bdf8;
+
+  /* ---- Bordas / shadows / radius ---- */
+  --nexo-border:        rgba(255, 255, 255, 0.07);
+  --nexo-border-strong: rgba(255, 255, 255, 0.13);
+  --nexo-radius:    16px;
+  --nexo-radius-sm: 11px;
+  --nexo-radius-xs: 8px;
+  --nexo-shadow:    0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  --nexo-shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+/* ============================================================
+   1. Reset & base
+   ============================================================ */
+* { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  background: var(--nexo-bg);
+  color: var(--nexo-text);
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 15.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+a:hover { color: var(--nexo-accent); }
+
+h1, h2, h3, h4, h5 {
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  color: var(--nexo-text);
+  margin: 0 0 14px;
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+}
+h1 { font-size: clamp(2rem, 1.4rem + 2.8vw, 3.4rem); font-weight: 800; }
+h2 { font-size: clamp(1.6rem, 1.1rem + 2vw, 2.6rem); }
+h3 { font-size: 1.15rem; }
+h4 { font-size: 1.02rem; }
+h5 { font-size: 0.95rem; }
+
+p { margin: 0 0 14px; color: var(--nexo-text-2); }
+p.lead { font-size: 1.08rem; color: var(--nexo-text-2); }
+
+section { padding: 96px 0; position: relative; }
+
+.accent { color: var(--nexo-accent); }
+
+/* ============================================================
+   2. Header sticky
+   ============================================================ */
+.nexo-header {
+  position: sticky; top: 0; z-index: 50;
+  background: rgba(8, 8, 13, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--nexo-border);
+}
+.nexo-header-inner {
+  max-width: 1240px; margin: 0 auto;
+  padding: 14px 28px;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+}
+
+.brand { display: flex; align-items: center; gap: 12px; }
+.brand-mark {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--nexo-accent), var(--nexo-accent-3));
+  color: #fff; font-weight: 800; font-size: 1.05rem;
+  border-radius: 10px;
+  box-shadow: 0 8px 20px -10px var(--nexo-accent-glow);
+}
+.brand-text .b1 { font-weight: 800; font-size: 1.02rem; letter-spacing: 0.02em; }
+.brand-text .b2 { color: var(--nexo-text-3); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; }
+
+.nav-links {
+  display: flex; gap: 28px;
+  list-style: none; margin: 0; padding: 0;
+}
+.nav-links a {
+  color: var(--nexo-text-2);
+  font-size: 0.92rem; font-weight: 500;
+  transition: color 0.18s;
+}
+.nav-links a:hover { color: var(--nexo-text); }
+
+.header-actions { display: flex; gap: 10px; align-items: center; }
+
+/* ============================================================
+   3. Botões NEXO
+   ============================================================ */
+.btn-nexo {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600; font-size: 0.92rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform 0.16s, box-shadow 0.16s, background 0.16s, border-color 0.16s;
+  white-space: nowrap;
+}
+.btn-nexo-primary {
+  background: linear-gradient(135deg, var(--nexo-accent), var(--nexo-accent-3));
+  color: #fff;
+  box-shadow: 0 8px 20px -10px var(--nexo-accent-glow);
+}
+.btn-nexo-primary:hover {
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px -10px var(--nexo-accent-glow);
+}
+.btn-nexo-secondary {
+  background: var(--nexo-surface);
+  border-color: var(--nexo-border-strong);
+  color: var(--nexo-text);
+}
+.btn-nexo-secondary:hover {
+  color: var(--nexo-text);
+  background: var(--nexo-surface-2);
+  border-color: var(--nexo-accent);
+}
+.btn-nexo-lg { padding: 14px 24px; font-size: 1rem; border-radius: 12px; }
+
+/* ============================================================
+   4. Section tag (eyebrow) + section title/subtitle
+   ============================================================ */
+.section-tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 7px 14px;
+  background: var(--nexo-accent-soft);
+  color: var(--nexo-accent);
+  border-radius: 999px;
+  font-size: 0.8rem; font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: 22px;
+}
+.section-title { margin-bottom: 16px; }
+.section-subtitle { color: var(--nexo-text-2); max-width: 700px; font-size: 1.04rem; }
+
+/* ============================================================
+   5. Hero
+   ============================================================ */
+.hero { padding-top: 110px; padding-bottom: 120px; overflow: hidden; }
+.hero h1 { margin-bottom: 22px; }
+.bg-ornament {
+  position: absolute; top: -200px; right: -240px;
+  width: 720px; height: 720px;
+  background: radial-gradient(closest-side, var(--nexo-accent-glow), transparent 70%);
+  filter: blur(20px); pointer-events: none; z-index: 0;
+}
+.position-relative { position: relative; z-index: 1; }
+
+.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; margin: 28px 0 32px; }
+.hero-trust { display: flex; gap: 22px; flex-wrap: wrap; }
+.hero-trust-item {
+  display: inline-flex; align-items: center; gap: 8px;
+  color: var(--nexo-text-3);
+  font-size: 0.85rem;
+}
+.hero-trust-item svg { color: var(--nexo-accent); }
+
+/* ============================================================
+   6. Mockup do hero (dashboard simulado)
+   ============================================================ */
+.mockup {
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border-strong);
+  border-radius: var(--nexo-radius);
+  padding: 22px;
+  box-shadow: var(--nexo-shadow-lg);
+  position: relative;
+}
+.mockup-head {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  margin-bottom: 18px; gap: 12px;
+}
+.mockup-title-block .mt-1 { font-weight: 700; font-size: 1.02rem; }
+.mockup-title-block .mt-2 { color: var(--nexo-text-3); font-size: 0.78rem; margin-top: 2px; }
+
+.badge-published {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(34, 197, 94, 0.13); color: var(--nexo-success);
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 0.74rem; font-weight: 600;
+  white-space: nowrap;
+}
+.badge-published .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--nexo-success);
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.18);
+}
+
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  margin-bottom: 16px;
+}
+.kpi-tile {
+  background: var(--nexo-surface-2);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius-sm);
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-tile .label { color: var(--nexo-text-3); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+.kpi-tile .value { font-family: 'JetBrains Mono', ui-monospace, monospace; font-weight: 700; font-size: 1.05rem; color: var(--nexo-text); }
+.kpi-tile.green::before, .kpi-tile.amber::before, .kpi-tile.purple::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: 3px;
+}
+.kpi-tile.green::before  { background: var(--nexo-success); }
+.kpi-tile.amber::before  { background: var(--nexo-warning); }
+.kpi-tile.purple::before { background: var(--nexo-accent); }
+.kpi-tile.green .value  { color: var(--nexo-success); }
+.kpi-tile.amber .value  { color: var(--nexo-warning); }
+.kpi-tile.purple .value { color: var(--nexo-accent); }
+
+.mockup-chart {
+  height: 160px;
+  background: var(--nexo-surface-2);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius-sm);
+  margin-bottom: 14px;
+}
+
+.mockup-list {
+  background: var(--nexo-surface-2);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius-sm);
+  padding: 12px 14px;
+}
+.mockup-list .ll { color: var(--nexo-text-3); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+.row-i {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; gap: 12px;
+  border-bottom: 1px dashed var(--nexo-border);
+  font-size: 0.86rem;
+}
+.row-i:last-child { border-bottom: 0; }
+.row-i strong { color: var(--nexo-text-2); font-weight: 500; }
+.row-i .v { color: var(--nexo-text); font-weight: 600; text-align: right; font-size: 0.82rem; }
+
+/* ============================================================
+   7. Cards do "Problema" + ganhos práticos
+   ============================================================ */
+.nexo-card {
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius);
+  padding: 26px 22px;
+  height: 100%;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.nexo-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--nexo-border-strong);
+  box-shadow: var(--nexo-shadow);
+}
+.nexo-card-icon {
+  width: 46px; height: 46px;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  background: var(--nexo-accent-soft);
+  color: var(--nexo-accent);
+}
+.nexo-card-icon.red   { background: rgba(239, 68, 68, 0.13); color: var(--nexo-danger); }
+.nexo-card-icon.amber { background: rgba(245, 158, 11, 0.14); color: var(--nexo-warning); }
+.nexo-card h3 { font-size: 1.02rem; margin-bottom: 8px; }
+.nexo-card p { color: var(--nexo-text-2); font-size: 0.9rem; margin: 0; }
+
+.ganhos-strip {
+  margin-top: 36px;
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius);
+  padding: 18px 22px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+}
+.ganhos-label { color: var(--nexo-text-3); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; }
+.ganho-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(34, 197, 94, 0.10);
+  color: var(--nexo-success);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem; font-weight: 500;
+}
+
+/* ============================================================
+   8. Flow cards (Como funciona)
+   ============================================================ */
+.flow-card {
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius);
+  padding: 26px 22px;
+  height: 100%;
+  position: relative;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.flow-card:hover { transform: translateY(-3px); border-color: var(--nexo-accent); }
+.flow-num {
+  position: absolute; top: 18px; right: 22px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--nexo-text-3); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.05em;
+}
+.flow-icon {
+  width: 46px; height: 46px;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  background: var(--nexo-accent-soft); color: var(--nexo-accent);
+  margin-bottom: 16px;
+}
+.flow-card h3 { font-size: 1rem; margin-bottom: 8px; }
+.flow-card p { color: var(--nexo-text-2); font-size: 0.88rem; margin: 0; }
+
+/* ============================================================
+   9. Testimonial
+   ============================================================ */
+.testimonial {
+  margin-top: 56px;
+  max-width: 760px; margin-left: auto; margin-right: auto;
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border-strong);
+  border-radius: var(--nexo-radius);
+  padding: 32px;
+  position: relative;
+}
+.quote-mark { position: absolute; top: 18px; left: 22px; color: var(--nexo-accent-soft); }
+.testimonial p {
+  font-size: 1.04rem; font-style: italic;
+  color: var(--nexo-text); margin: 12px 0 22px;
+  padding-left: 28px;
+}
+.testimonial-author { display: flex; align-items: center; gap: 12px; padding-left: 28px; }
+.ta-avatar {
+  width: 42px; height: 42px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--nexo-accent), var(--nexo-accent-3));
+  color: #fff; font-weight: 700; font-size: 0.88rem;
+}
+.ta-name { font-weight: 600; font-size: 0.92rem; }
+.ta-role { color: var(--nexo-text-3); font-size: 0.78rem; }
+
+/* ============================================================
+   10. Indicadores do MVP (tabela "lista")
+   ============================================================ */
+.indicators-wrap {
+  max-width: 820px; margin: 0 auto;
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius);
+  overflow: hidden;
+}
+.indicator-row {
+  display: grid;
+  grid-template-columns: 60px 1fr auto;
+  align-items: center; gap: 16px;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--nexo-border);
+  transition: background 0.15s;
+}
+.indicator-row:hover { background: var(--nexo-surface-2); }
+.indicator-row:last-of-type { border-bottom: 0; }
+.indicator-num {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--nexo-accent); font-weight: 700; font-size: 1rem;
+}
+.indicator-name { color: var(--nexo-text); font-weight: 500; }
+.indicator-tag {
+  background: var(--nexo-surface-2);
+  color: var(--nexo-text-3);
+  padding: 4px 10px; border-radius: 999px;
+  font-size: 0.74rem; font-weight: 600;
+  border: 1px solid var(--nexo-border);
+}
+
+.disclaimer {
+  background: rgba(245, 158, 11, 0.10);
+  border-top: 1px solid var(--nexo-border);
+  padding: 18px 22px;
+  display: flex; gap: 14px; align-items: flex-start;
+  color: var(--nexo-warning);
+  font-size: 0.86rem;
+}
+.disclaimer strong { display: block; margin-bottom: 4px; color: var(--nexo-warning); }
+.disclaimer span { color: var(--nexo-text-2); }
+
+/* ============================================================
+   11. Demonstração do dashboard
+   ============================================================ */
+.dashboard-demo {
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border-strong);
+  border-radius: var(--nexo-radius);
+  padding: 28px;
+  box-shadow: var(--nexo-shadow-lg);
+}
+.demo-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
+.demo-head-title h4 { margin: 0 0 2px; font-size: 1.08rem; }
+.demo-head-title p { color: var(--nexo-text-3); font-size: 0.84rem; margin: 0; }
+
+.demo-kpi-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  margin-bottom: 22px;
+}
+.demo-kpi {
+  background: var(--nexo-surface-2);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius-sm);
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+}
+.demo-kpi .label {
+  display: inline-flex; align-items: center; gap: 6px;
+  color: var(--nexo-text-3); font-size: 0.78rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+.demo-kpi .value {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 1.6rem; font-weight: 700;
+  color: var(--nexo-text);
+  margin-bottom: 4px;
+}
+.demo-kpi .sub { color: var(--nexo-text-3); font-size: 0.78rem; }
+.demo-kpi.green .value { color: var(--nexo-success); }
+.demo-kpi.amber .value { color: var(--nexo-warning); }
+.demo-kpi.green::before, .demo-kpi.amber::before {
+  content: ''; position: absolute; inset: 0 auto 0 0; width: 3px;
+}
+.demo-kpi.green::before { background: var(--nexo-success); }
+.demo-kpi.amber::before { background: var(--nexo-warning); }
+
+.demo-charts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+.demo-chart-card {
+  background: var(--nexo-surface-2);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius-sm);
+  padding: 18px;
+}
+.demo-chart-card h5 { font-size: 0.94rem; margin: 0 0 2px; }
+.demo-chart-card .sub { color: var(--nexo-text-3); font-size: 0.78rem; margin-bottom: 12px; }
+
+/* ============================================================
+   12. Método NEXO (report-blocks)
+   ============================================================ */
+.report-blocks {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px;
+  margin-top: 36px;
+}
+.report-block {
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius-sm);
+  padding: 22px 18px;
+  transition: transform 0.18s, border-color 0.18s;
+}
+.report-block:hover { transform: translateY(-2px); border-color: var(--nexo-accent); }
+.report-block .step {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--nexo-accent); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+.report-block h4 { font-size: 0.98rem; margin-bottom: 6px; }
+.report-block p { color: var(--nexo-text-2); font-size: 0.85rem; margin: 0; }
+
+/* ============================================================
+   13. Plans
+   ============================================================ */
+.plans-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;
+  max-width: 1080px; margin: 0 auto;
+}
+.plan {
+  background: var(--nexo-surface);
+  border: 1px solid var(--nexo-border);
+  border-radius: var(--nexo-radius);
+  padding: 32px 28px;
+  display: flex; flex-direction: column;
+  position: relative;
+  transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.plan:hover { transform: translateY(-3px); border-color: var(--nexo-border-strong); }
+.plan.featured {
+  border-color: var(--nexo-accent);
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.06), var(--nexo-surface));
+  box-shadow: var(--nexo-shadow), 0 0 0 1px var(--nexo-accent-soft);
+}
+.plan-flag {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+  background: linear-gradient(135deg, var(--nexo-accent), var(--nexo-accent-3));
+  color: #fff;
+  padding: 6px 16px; border-radius: 999px;
+  font-size: 0.74rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.plan-name {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.plan.bronze .plan-name { color: #cd7f32; }
+.plan.prata  .plan-name { color: #c0c0c0; }
+.plan.ouro   .plan-name { color: #ffd700; }
+.plan-tag { color: var(--nexo-text-2); font-size: 0.9rem; margin-bottom: 24px; }
+.plan-price { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 1.6rem; font-weight: 700; }
+.plan-price-sub { color: var(--nexo-text-3); font-size: 0.82rem; margin-bottom: 20px; }
+.plan-features { list-style: none; padding: 0; margin: 0 0 28px; flex: 1; }
+.plan-features li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--nexo-border);
+  font-size: 0.9rem;
+}
+.plan-features li:last-child { border-bottom: 0; }
+.plan-features svg { color: var(--nexo-success); flex-shrink: 0; }
+
+/* ============================================================
+   14. CTA Final
+   ============================================================ */
+.cta-final {
+  background: linear-gradient(135deg, var(--nexo-surface-2), var(--nexo-surface));
+  border: 1px solid var(--nexo-border-strong);
+  border-radius: var(--nexo-radius);
+  padding: 60px 40px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.cta-final::before {
+  content: ''; position: absolute;
+  top: -200px; left: 50%; transform: translateX(-50%);
+  width: 700px; height: 700px;
+  background: radial-gradient(closest-side, var(--nexo-accent-glow), transparent 70%);
+  filter: blur(20px);
+  pointer-events: none;
+}
+.cta-final h2 { margin-bottom: 14px; position: relative; z-index: 1; }
+.cta-final p { color: var(--nexo-text-2); max-width: 620px; margin: 0 auto 28px; position: relative; z-index: 1; }
+.cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; position: relative; z-index: 1; }
+
+/* ============================================================
+   15. Footer
+   ============================================================ */
+.nexo-footer {
+  background: var(--nexo-bg-2);
+  border-top: 1px solid var(--nexo-border);
+  padding: 60px 0 30px;
+  margin-top: 80px;
+}
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 40px;
+  max-width: 1240px; margin: 0 auto;
+  padding: 0 28px;
+}
+.footer-brand p { color: var(--nexo-text-3); font-size: 0.88rem; margin-top: 16px; max-width: 340px; }
+.footer-col h5 { font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--nexo-text); margin-bottom: 14px; }
+.footer-col ul { list-style: none; padding: 0; margin: 0; }
+.footer-col li { padding: 6px 0; }
+.footer-col a { color: var(--nexo-text-3); font-size: 0.88rem; }
+.footer-col a:hover { color: var(--nexo-text); }
+.footer-bottom {
+  max-width: 1240px; margin: 40px auto 0;
+  padding: 24px 28px 0;
+  border-top: 1px solid var(--nexo-border);
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  color: var(--nexo-text-3); font-size: 0.82rem;
+}
+.academic-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--nexo-accent-soft); color: var(--nexo-accent);
+  padding: 6px 12px; border-radius: 999px;
+  font-size: 0.76rem; font-weight: 600;
+}
+
+/* ============================================================
+   16. Responsividade
+   ============================================================ */
+@media (max-width: 992px) {
+  .nav-links { display: none; }
+  .demo-kpi-grid { grid-template-columns: 1fr; }
+  .demo-charts { grid-template-columns: 1fr; }
+  .report-blocks { grid-template-columns: repeat(2, 1fr); }
+  .plans-grid { grid-template-columns: 1fr; max-width: 460px; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  section { padding: 64px 0; }
+  .hero { padding-top: 70px; padding-bottom: 70px; }
+  .header-actions .header-demo-btn { display: none; }
+  .report-blocks { grid-template-columns: 1fr; }
+  .footer-grid { grid-template-columns: 1fr; gap: 28px; }
+  .hero-trust { gap: 14px; }
+  .ganhos-strip { flex-direction: column; align-items: flex-start; }
+}

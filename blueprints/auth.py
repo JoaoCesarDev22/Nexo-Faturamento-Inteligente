@@ -12,9 +12,13 @@ auth_bp = Blueprint("auth", __name__)
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     """Gere o ecrã e a lógica de login do utilizador."""
-    # Se já estiver autenticado, redireciona para a página inicial (que faz o devido redirecionamento)
+    # Se já estiver autenticado, vai DIRETO ao dashboard do perfil correto.
+    # (Antes redirecionava para "index", mas "index" agora serve a landing
+    # institucional — voltar pra lá seria UX hostil pra quem já está logado.)
     if current_user.is_authenticated:
-        return redirect(url_for("index"))
+        if current_user.is_admin:
+            return redirect(url_for("admin.dashboard"))
+        return redirect(url_for("cliente.dashboard"))
 
     if request.method == "POST":
         email = request.form.get("email", "").strip()
