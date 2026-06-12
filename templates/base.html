@@ -98,28 +98,24 @@
                 <div class="dropdown nexo-bell">
                     <button class="bell-btn" type="button" id="bellBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notificações">
                         <i class="bi bi-bell"></i>
-                        {% if notif_nao_lidas and notif_nao_lidas > 0 %}
-                        <span class="bell-badge">{{ notif_nao_lidas if notif_nao_lidas < 100 else '99+' }}</span>
-                        {% endif %}
+                        {% set _c = notif_nao_lidas or 0 %}
+                        <span class="bell-badge" id="bellBadge" data-count="{{ _c }}" {% if _c == 0 %}style="display:none;"{% endif %}>{{ _c if _c < 100 else '99+' }}</span>
                     </button>
                     <div class="dropdown-menu dropdown-menu-end bell-menu" aria-labelledby="bellBtn">
                         <div class="bell-head">
                             <span>Notificações</span>
-                            {% if notif_nao_lidas and notif_nao_lidas > 0 %}
-                            <form method="POST" action="{{ url_for('notificacoes.marcar_lidas') }}" class="m-0">
+                            <form method="POST" action="{{ url_for('notificacoes.marcar_lidas') }}" class="m-0" id="bellMarkForm" {% if _c == 0 %}style="display:none;"{% endif %}>
                                 <button type="submit" class="bell-mark">Marcar todas como lidas</button>
                             </form>
-                            {% endif %}
                         </div>
-                        <div class="bell-list">
+                        <div class="bell-list" id="bellList">
                             {% for n in notif_recentes %}
                             <a class="bell-item {{ 'is-unread' if not n.lida }}" href="{{ url_for('notificacoes.abrir', id_notificacao=n.id_notificacao) }}">
                                 <span class="bell-dot"></span>
                                 <span class="bell-text">{{ n.texto }}<small>{{ n.data_criacao.strftime('%d/%m %H:%M') }}</small></span>
                             </a>
-                            {% else %}
-                            <div class="bell-empty"><i class="bi bi-bell-slash"></i> Nenhuma notificação ainda.</div>
                             {% endfor %}
+                            <div class="bell-empty" id="bellEmpty" {% if notif_recentes %}style="display:none;"{% endif %}><i class="bi bi-bell-slash"></i> Nenhuma notificação ainda.</div>
                         </div>
                     </div>
                 </div>
@@ -313,6 +309,81 @@
         });
       };
     </script>
+
+    {% if current_user.is_authenticated %}
+    {# ---------------- Tempo real: sininho ao vivo (Socket.IO) ---------------- #}
+    <div class="nexo-toast-wrap" id="nexoToasts" aria-live="polite" aria-atomic="true"></div>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+      (function () {
+        if (typeof io === 'undefined') return;
+        var socket = io({ transports: ['websocket', 'polling'] });
+
+        var badge = document.getElementById('bellBadge');
+        var list = document.getElementById('bellList');
+        var empty = document.getElementById('bellEmpty');
+        var markForm = document.getElementById('bellMarkForm');
+
+        function escapeHtml(s) {
+          var d = document.createElement('div');
+          d.textContent = (s == null) ? '' : String(s);
+          return d.innerHTML;
+        }
+
+        function showToast(texto, link) {
+          var wrap = document.getElementById('nexoToasts');
+          if (!wrap) return;
+          var el = document.createElement('div');
+          el.className = 'nexo-toast';
+          el.innerHTML = '<span class="nt-icon"><i class="bi bi-bell-fill"></i></span>' +
+                         '<span class="nt-text">' + escapeHtml(texto) + '</span>';
+          if (link) {
+            el.style.cursor = 'pointer';
+            el.addEventListener('click', function () { window.location.href = link; });
+          }
+          wrap.appendChild(el);
+          requestAnimationFrame(function () { el.classList.add('show'); });
+          window.setTimeout(function () {
+            el.classList.remove('show');
+            window.setTimeout(function () { el.remove(); }, 300);
+          }, 5000);
+        }
+
+        socket.on('nova_notificacao', function (n) {
+          // 1) Badge: incrementa e pulsa
+          if (badge) {
+            var count = parseInt(badge.getAttribute('data-count') || '0', 10) + 1;
+            badge.setAttribute('data-count', count);
+            badge.textContent = count < 100 ? count : '99+';
+            badge.style.display = '';
+            badge.classList.remove('pulse');
+            void badge.offsetWidth;        // reinicia a animação
+            badge.classList.add('pulse');
+          }
+          if (markForm) markForm.style.display = '';
+          if (empty) empty.style.display = 'none';
+
+          // 2) Injeta a notificação no topo do dropdown
+          if (list) {
+            var a = document.createElement('a');
+            a.className = 'bell-item is-unread';
+            a.href = '/notificacoes/' + n.id + '/abrir';
+            a.innerHTML = '<span class="bell-dot"></span><span class="bell-text">' +
+                          escapeHtml(n.texto) +
+                          '<small>' + escapeHtml(n.hora || '') + '</small></span>';
+            var first = list.querySelector('.bell-item');
+            if (first) { list.insertBefore(a, first); } else { list.insertBefore(a, list.firstChild); }
+            // mantém no máximo 5 itens visíveis
+            var items = list.querySelectorAll('.bell-item');
+            for (var i = items.length - 1; i >= 5; i--) { items[i].remove(); }
+          }
+
+          // 3) Alerta visual (toast) clicável
+          showToast(n.texto, n.link);
+        });
+      })();
+    </script>
+    {% endif %}
 
     {% block extra_js %}{% endblock %}
     {% block extra_scripts %}{% endblock %}

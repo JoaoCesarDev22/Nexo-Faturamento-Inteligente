@@ -14,6 +14,7 @@
         <p class="sub">Período: {{ analise.periodo_inicio.strftime('%d/%m/%Y') }} – {{ analise.periodo_fim.strftime('%d/%m/%Y') }}</p>
     </div>
     <div class="page-head-actions">
+        <a href="{{ url_for('cliente.analise_pdf', id_analise=analise.id_analise) }}" class="btn-nexo"><i class="bi bi-file-earmark-pdf"></i> Exportar PDF</a>
         <a href="{{ url_for('cliente.historico') }}" class="btn-ghost"><i class="bi bi-clock-history"></i> Histórico</a>
         <a href="{{ url_for('cliente.dashboard') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar ao painel</a>
     </div>

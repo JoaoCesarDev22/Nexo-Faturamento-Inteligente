@@ -23,7 +23,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from config import config_by_name
-from extensions import db, login_manager
+from extensions import db, login_manager, migrate, mail, socketio
 
 
 def _set_sqlite_pragma(dbapi_connection, connection_record):
@@ -67,6 +67,12 @@ def create_app(config_name: str = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_by_name[config_name])
 
+    # Modo DIRETO de banco: usado por DDL/migrações (Alembic) para falar com o
+    # Postgres na conexão direta (5432) em vez do PgBouncer (6543). Ativado por
+    #   NEXO_DB_DIRECT=1 flask db upgrade
+    if os.environ.get("NEXO_DB_DIRECT") == "1":
+        app.config["SQLALCHEMY_DATABASE_URI"] = app.config["SQLALCHEMY_DIRECT_URI"]
+
     # Garante que a pasta instance/ exista (onde o SQLite vai morar).
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     # E a pasta de uploads.
@@ -75,6 +81,13 @@ def create_app(config_name: str = None) -> Flask:
     # Inicializa extensões
     db.init_app(app)
     login_manager.init_app(app)
+    # Flask-Migrate precisa enxergar os modelos — importados logo abaixo no
+    # user_loader/blueprints; aqui basta registrar db + app.
+    migrate.init_app(app, db)
+    mail.init_app(app)
+    socketio.init_app(app)
+    # Registra os handlers de WebSocket (connect/disconnect → salas por usuário).
+    import realtime  # noqa: F401
 
     # Configura logging básico
     logging.basicConfig(
@@ -133,7 +146,16 @@ def create_app(config_name: str = None) -> Flask:
 
 
 # Entry point para `python app.py` (dev local).
-# Em produção, use um WSGI server (gunicorn, waitress).
+# Em produção, use um servidor compatível com WebSocket (ex.: gunicorn com
+# worker apropriado). O socketio.run sobe o servidor com suporte a WebSocket.
 if __name__ == "__main__":
     app = create_app()
-    app.run(host="127.0.0.1", port=5000, debug=app.config.get("DEBUG", False))
+    socketio.run(
+        app,
+        host="127.0.0.1",
+        port=5000,
+        debug=app.config.get("DEBUG", False),
+        # Necessário para rodar sobre o servidor de dev do Werkzeug em modo
+        # threading (Flask-SocketIO 5.x exige este opt-in fora de produção).
+        allow_unsafe_werkzeug=True,
+    )
