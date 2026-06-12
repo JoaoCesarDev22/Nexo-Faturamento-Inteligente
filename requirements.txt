@@ -20,3 +20,7 @@ Flask-Migrate==4.0.7
 # Engajamento e entregáveis
 Flask-Mail==0.10.0       # SMTP — e-mails HTML (tickets, publicação de análise)
 reportlab==4.2.5         # PDF — exportação da análise executiva (ABC + 5W2H)
+
+# Tempo real — sininho de notificações via WebSocket
+Flask-SocketIO==5.4.1    # async_mode="threading" (estável no Python 3.12)
+simple-websocket==1.1.0  # driver WebSocket para o modo threading

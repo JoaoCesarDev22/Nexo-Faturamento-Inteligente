@@ -931,3 +931,34 @@ input, textarea, select, option,
 .chat-time { font-size: 0.7rem; color: var(--text-dim); font-family: var(--font-mono); }
 .chat-text { font-size: 0.9rem; line-height: 1.55; color: #d6d8e3; white-space: pre-line; }
 .chat-reply { border-top: 1px solid var(--border); padding-top: 14px; }
+
+/* ===================================================================
+   TEMPO REAL — toasts de notificação + pulse do badge do sininho
+   =================================================================== */
+.nexo-toast-wrap {
+  position: fixed; right: 22px; bottom: 22px; z-index: 1080;
+  display: flex; flex-direction: column; gap: 10px; max-width: 360px;
+}
+.nexo-toast {
+  display: flex; align-items: flex-start; gap: 11px;
+  background: var(--surface-2); border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--primary);
+  border-radius: 12px; padding: 13px 15px; box-shadow: var(--shadow-lg);
+  color: var(--text); font-size: 0.9rem; line-height: 1.4;
+  opacity: 0; transform: translateX(28px); transition: opacity 0.28s ease, transform 0.28s ease;
+}
+.nexo-toast.show { opacity: 1; transform: translateX(0); }
+.nexo-toast .nt-icon {
+  flex: 0 0 auto; width: 30px; height: 30px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--primary-soft); color: #d8c2fd; font-size: 0.95rem;
+}
+.nexo-toast .nt-text { flex: 1; }
+
+@keyframes bell-pulse {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.45); }
+  70%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+.bell-badge.pulse { animation: bell-pulse 0.55s ease; }

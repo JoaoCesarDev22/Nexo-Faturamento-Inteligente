@@ -12,16 +12,48 @@ Gatilhos atuais:
   - nova resposta em chamado de suporte   -> notifica a contraparte
 """
 
+import logging
+from datetime import datetime
+
 from sqlalchemy import select
 
-from extensions import db
+from extensions import db, socketio
 from models import Notificacao, Usuario
+
+logger = logging.getLogger(__name__)
+
+
+def _emitir_tempo_real(id_usuario: int, n: Notificacao) -> None:
+    """
+    Emite o evento WebSocket 'nova_notificacao' para a sala do usuário-alvo.
+    Falha de emit NUNCA quebra o fluxo de negócio (apenas loga). O badge do
+    sininho é sempre reconciliado pelo banco no próximo carregamento de página,
+    então uma eventual emissão perdida se autocorrige.
+    """
+    try:
+        socketio.emit(
+            "nova_notificacao",
+            {
+                "id": n.id_notificacao,
+                "texto": n.texto,
+                "link": n.link_destino or "",
+                "hora": datetime.now().strftime("%d/%m %H:%M"),
+            },
+            room=f"user_{id_usuario}",
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Falha ao emitir notificação em tempo real: %s", e)
 
 
 def criar_notificacao(id_usuario: int, texto: str, link_destino: str | None = None) -> Notificacao:
-    """Cria UMA notificação (add na sessão, sem commit)."""
+    """
+    Cria UMA notificação (add na sessão, sem commit) e dispara o evento em
+    tempo real. O flush garante o id_notificacao para o payload do socket.
+    """
     n = Notificacao(id_usuario=id_usuario, texto=texto, link_destino=link_destino)
     db.session.add(n)
+    db.session.flush()  # garante o PK para o payload
+    _emitir_tempo_real(id_usuario, n)
     return n
 
 
