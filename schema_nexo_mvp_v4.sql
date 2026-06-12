@@ -24,6 +24,16 @@
 --      com ROWID; AUTOINCREMENT só agrega custo se você precisa evitar
 --      reuso de IDs deletados, o que não é o caso aqui).
 --
+-- Mudanças incrementais pós-V4 (refletem o banco real):
+--   8. upload_relatorio.id_usuario_admin agora é NULLABLE.
+--      Motivo: self-service onboarding — o próprio CLIENTE anexa os
+--      relatórios ERP (id_usuario_admin = NULL = "aguardando validação"
+--      do consultor). Uploads feitos pelo time NEXO seguem preenchendo o id.
+--   9. Nova tabela produto_curva_abc (embasamento metodológico — Pareto).
+--      Persiste o ranking top-N de produtos por faturamento, classificado
+--      em Curva ABC (A/B/C). 1:N com analise — diferente de indicador_analise
+--      (1:1, KPIs escalares). Mantém a regra: SEM lucro/margem/CMV.
+--
 -- IMPORTANTE — sobre PRAGMA foreign_keys:
 --   No SQLite, foreign keys vêm DESLIGADAS por padrão. Este PRAGMA precisa
 --   ser executado em TODA conexão nova. Escrevê-lo aqui no topo do .sql
@@ -170,7 +180,10 @@ CREATE TABLE analise (
 CREATE TABLE upload_relatorio (
     id_upload INTEGER PRIMARY KEY,
     id_analise INTEGER NOT NULL,
-    id_usuario_admin INTEGER NOT NULL,
+    -- NULLABLE: NULL = arquivo anexado pelo PRÓPRIO CLIENTE (self-service
+    -- onboarding), aguardando homologação do consultor. Preenchido com o
+    -- id do ADMIN quando o upload é feito/homologado pelo time NEXO.
+    id_usuario_admin INTEGER,
     tipo_relatorio TEXT NOT NULL
         CHECK(tipo_relatorio IN ('VENDAS', 'COMPRAS')),
     nome_arquivo_original TEXT NOT NULL,
@@ -240,19 +253,51 @@ CREATE TABLE relatorio_analise (
 
 
 -- =====================================================================
--- 9. chamado_suporte
+-- 8b. produto_curva_abc   (embasamento metodológico — Princípio de Pareto)
 -- =====================================================================
--- ⚠️ FORA DO ESCOPO PI2 — implementação prevista para pós-PI3.
--- Mantida no DDL como documentação do modelo lógico completo.
--- No PI2: não terá Model SQLAlchemy nem rotas. Suporte ao cliente
--- será via link direto para WhatsApp da equipe NEXO.
+-- Ranking de produtos por faturamento de uma análise, classificado pela
+-- Curva ABC (regra 80-20):
+--   Classe A (Estratégicos):  até 80% do faturamento acumulado;
+--   Classe B (Táticos):       de 80% a 95%;
+--   Classe C (Operacionais):  os ~5% restantes (cauda longa).
+-- Diferente de indicador_analise (1:1, KPIs escalares), aqui há UMA LINHA
+-- POR PRODUTO do topo do ranking (top-N) — viabiliza o gráfico de barras
+-- horizontais coloridas por classe no painel do cliente. Mantém a regra
+-- inegociável do ETL: NÃO há lucro/margem/CMV, só faturamento por produto.
+CREATE TABLE produto_curva_abc (
+    id_produto_abc INTEGER PRIMARY KEY,
+    id_analise INTEGER NOT NULL,
+    posicao_ranking INTEGER NOT NULL,
+    produto_nome TEXT NOT NULL,
+    faturamento NUMERIC NOT NULL,
+    quantidade NUMERIC,
+    percentual_individual NUMERIC NOT NULL,
+    percentual_acumulado NUMERIC NOT NULL,
+    classe_abc TEXT NOT NULL CHECK(classe_abc IN ('A', 'B', 'C')),
+    data_geracao DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (id_analise, posicao_ranking),
+    FOREIGN KEY (id_analise) REFERENCES analise(id_analise)
+);
+
+
+-- =====================================================================
+-- 9. chamado_suporte   (REATIVADO — Sistema de Tickets de Suporte)
+-- =====================================================================
+-- Reativada e adaptada ao escopo atual (engajamento/suporte):
+--   - adicionado `categoria` (Financeiro / Dúvida Técnica / Erro de Integração);
+--   - `status_chamado` simplificado para 3 estados (ABERTO / EM_ATENDIMENTO /
+--     RESOLVIDO) — o cliente reabre enviando nova mensagem;
+--   - `prioridade` mantido (default MEDIA), não exposto na UI atual.
+-- `assunto` é o título do ticket. Tem Model SQLAlchemy (ChamadoSuporte) e rotas.
 CREATE TABLE chamado_suporte (
     id_chamado INTEGER PRIMARY KEY,
     id_empresa INTEGER NOT NULL,
     id_usuario_cliente INTEGER NOT NULL,
     assunto TEXT NOT NULL,
+    categoria TEXT NOT NULL
+        CHECK(categoria IN ('FINANCEIRO', 'DUVIDA_TECNICA', 'ERRO_INTEGRACAO')),
     status_chamado TEXT NOT NULL DEFAULT 'ABERTO'
-        CHECK(status_chamado IN ('ABERTO', 'EM_ATENDIMENTO', 'RESPONDIDO', 'FECHADO')),
+        CHECK(status_chamado IN ('ABERTO', 'EM_ATENDIMENTO', 'RESOLVIDO')),
     prioridade TEXT NOT NULL DEFAULT 'MEDIA'
         CHECK(prioridade IN ('BAIXA', 'MEDIA', 'ALTA')),
     data_abertura DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -264,9 +309,10 @@ CREATE TABLE chamado_suporte (
 
 
 -- =====================================================================
--- 10. mensagem_suporte
+-- 10. mensagem_suporte   (REATIVADO — mensagens do chamado)
 -- =====================================================================
--- ⚠️ FORA DO ESCOPO PI2 — implementação prevista para pós-PI3.
+-- Conversa cliente ↔ consultor dentro de um chamado. Tem Model
+-- SQLAlchemy (MensagemSuporte) e alimenta a UI de chat.
 CREATE TABLE mensagem_suporte (
     id_mensagem INTEGER PRIMARY KEY,
     id_chamado INTEGER NOT NULL,
@@ -276,6 +322,23 @@ CREATE TABLE mensagem_suporte (
     lida BOOLEAN NOT NULL DEFAULT 0,
     FOREIGN KEY (id_chamado) REFERENCES chamado_suporte(id_chamado),
     FOREIGN KEY (id_usuario_remetente) REFERENCES usuario(id_usuario)
+);
+
+
+-- =====================================================================
+-- 10b. notificacao   (sininho da navbar — engajamento)
+-- =====================================================================
+-- Notificação dirigida a UM usuário (cliente ou admin). Gerada por gatilhos:
+-- upload de cliente, homologação/processamento, publicação de análise e
+-- respostas em chamados. `link_destino` é a URL aberta ao clicar.
+CREATE TABLE notificacao (
+    id_notificacao INTEGER PRIMARY KEY,
+    id_usuario INTEGER NOT NULL,
+    texto TEXT NOT NULL,
+    link_destino TEXT,
+    lida BOOLEAN NOT NULL DEFAULT 0,
+    data_criacao DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario)
 );
 
 
@@ -342,6 +405,10 @@ CREATE INDEX idx_analise_admin        ON analise(id_usuario_admin_responsavel);
 
 CREATE INDEX idx_upload_analise       ON upload_relatorio(id_analise);
 CREATE INDEX idx_upload_admin         ON upload_relatorio(id_usuario_admin);
+
+CREATE INDEX ix_abc_analise           ON produto_curva_abc(id_analise);
+
+CREATE INDEX ix_notificacao_usuario   ON notificacao(id_usuario);
 
 CREATE INDEX idx_chamado_empresa      ON chamado_suporte(id_empresa);
 CREATE INDEX idx_chamado_cliente      ON chamado_suporte(id_usuario_cliente);

@@ -772,3 +772,162 @@ input, textarea, select, option,
   -ms-user-select: text;
   user-select: text;
 }
+
+/* ===================================================================
+   CURVA ABC — badges de classe (Princípio de Pareto)
+   =================================================================== */
+.abc-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 8px;
+  font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem;
+  border: 1px solid transparent; line-height: 1;
+}
+.abc-a { background: var(--success-bg); color: #6ee7a8; border-color: rgba(34, 197, 94, 0.35); }
+.abc-b { background: var(--warning-bg); color: #fbd07a; border-color: rgba(245, 158, 11, 0.35); }
+.abc-c { background: rgba(154, 160, 183, 0.14); color: #c2c7d8; border-color: rgba(154, 160, 183, 0.3); }
+.abc-muted { background: var(--surface-3); color: var(--text-muted); }
+.nota-abc { background: var(--primary-soft); border-color: rgba(168, 85, 247, 0.25); }
+.nota-abc i { color: var(--primary); }
+
+/* ===================================================================
+   SÍNTESE EXECUTIVA — cards-semáforo de risco (5W2H)
+   =================================================================== */
+.semaforo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+.semaforo-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--text-dim);
+  border-radius: var(--radius-sm);
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.semaforo-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+.semaforo-card .sc-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.semaforo-card .sc-dot {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 9px; flex: 0 0 auto;
+  font-size: 0.95rem;
+}
+.semaforo-card .sc-title { font-weight: 700; font-size: 0.97rem; color: var(--text); }
+.semaforo-card .sc-row { display: flex; flex-direction: column; gap: 1px; margin-top: 8px; }
+.semaforo-card .sc-key {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.semaforo-card .sc-val { font-size: 0.9rem; color: #d6d8e3; line-height: 1.45; }
+
+/* Vermelho — crítico */
+.semaforo-card.s-critico { border-left-color: var(--danger); }
+.semaforo-card.s-critico .sc-dot { background: var(--danger-bg); color: #fca5a5; }
+/* Amarelo — atenção */
+.semaforo-card.s-atencao { border-left-color: var(--warning); }
+.semaforo-card.s-atencao .sc-dot { background: var(--warning-bg); color: #fbd07a; }
+/* Verde — oportunidade */
+.semaforo-card.s-oportunidade { border-left-color: var(--success); }
+.semaforo-card.s-oportunidade .sc-dot { background: var(--success-bg); color: #6ee7a8; }
+
+/* ===================================================================
+   SININHO DE NOTIFICAÇÕES (navbar)
+   =================================================================== */
+.nexo-bell { position: relative; }
+.bell-btn {
+  position: relative; width: 42px; height: 42px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); font-size: 1.15rem; cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+.bell-btn:hover { background: var(--surface-hover); border-color: var(--border-strong); transform: translateY(-1px); }
+.bell-btn[aria-expanded="true"] { border-color: var(--primary); color: #d8c2fd; }
+.bell-badge {
+  position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px;
+  padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff;
+  font-size: 0.66rem; font-weight: 800; line-height: 18px; text-align: center;
+  border: 2px solid var(--bg-2); box-shadow: 0 0 0 1px rgba(239,68,68,0.4);
+}
+.bell-menu {
+  width: 340px; max-width: 92vw; padding: 0; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm); box-shadow: var(--shadow-lg); margin-top: 10px;
+}
+.bell-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-bottom: 1px solid var(--border);
+  font-weight: 700; font-size: 0.92rem;
+}
+.bell-mark {
+  background: none; border: none; color: #c4a0fb; cursor: pointer;
+  font-size: 0.78rem; font-weight: 600; padding: 0;
+}
+.bell-mark:hover { color: #d8c2fd; text-decoration: underline; }
+.bell-list { max-height: 360px; overflow-y: auto; }
+.bell-item {
+  display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px;
+  text-decoration: none; color: var(--text); border-bottom: 1px solid var(--border);
+  transition: background 0.12s ease;
+}
+.bell-item:last-child { border-bottom: none; }
+.bell-item:hover { background: var(--surface-hover); }
+.bell-item .bell-dot {
+  width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex: 0 0 auto;
+  background: transparent;
+}
+.bell-item.is-unread { background: rgba(168, 85, 247, 0.06); }
+.bell-item.is-unread .bell-dot { background: var(--primary); box-shadow: 0 0 6px var(--primary-glow); }
+.bell-text { font-size: 0.86rem; line-height: 1.4; }
+.bell-text small { display: block; color: var(--text-dim); font-size: 0.72rem; margin-top: 3px; }
+.bell-empty { padding: 24px 14px; text-align: center; color: var(--text-dim); font-size: 0.86rem; }
+
+/* ===================================================================
+   BADGES DE CATEGORIA DE TICKET + PILL DE CONTAGEM
+   =================================================================== */
+.cat-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px;
+  border-radius: 999px; font-size: 0.74rem; font-weight: 600;
+  border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-muted);
+}
+.cat-badge i { font-size: 0.82rem; }
+.cat-fin { background: var(--success-bg); color: #6ee7a8; border-color: rgba(34,197,94,0.25); }
+.cat-tec { background: var(--info-bg); color: #7dd3fc; border-color: rgba(56,189,248,0.25); }
+.cat-err { background: var(--danger-bg); color: #fca5a5; border-color: rgba(239,68,68,0.25); }
+.count-pill {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; padding: 0 7px; margin-left: 6px;
+  border-radius: 999px; background: var(--primary-soft); color: #d8c2fd;
+  font-size: 0.74rem; font-weight: 700; font-family: var(--font-mono);
+  border: 1px solid rgba(168,85,247,0.25); vertical-align: middle;
+}
+
+/* ===================================================================
+   CHAT DE TICKETS (conversa)
+   =================================================================== */
+.chat-thread { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 8px; }
+.chat-msg { display: flex; }
+.chat-msg.is-mine { justify-content: flex-end; }
+.chat-msg.is-theirs { justify-content: flex-start; }
+.chat-bubble {
+  max-width: 78%; padding: 11px 14px; border-radius: 14px;
+  border: 1px solid var(--border); background: var(--surface-2);
+}
+.chat-msg.is-mine .chat-bubble {
+  background: var(--primary-soft); border-color: rgba(168,85,247,0.28);
+  border-bottom-right-radius: 4px;
+}
+.chat-msg.is-theirs .chat-bubble { border-bottom-left-radius: 4px; }
+.chat-meta {
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  margin-bottom: 5px;
+}
+.chat-author { font-size: 0.78rem; font-weight: 700; color: var(--text); display: inline-flex; align-items: center; gap: 5px; }
+.chat-bubble.b-admin .chat-author { color: #c4a0fb; }
+.chat-time { font-size: 0.7rem; color: var(--text-dim); font-family: var(--font-mono); }
+.chat-text { font-size: 0.9rem; line-height: 1.55; color: #d6d8e3; white-space: pre-line; }
+.chat-reply { border-top: 1px solid var(--border); padding-top: 14px; }

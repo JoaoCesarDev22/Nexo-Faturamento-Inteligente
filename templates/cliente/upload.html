@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Enviar relatórios — NEXO{% endblock %}
+{% block page_title %}Enviar relatórios ERP{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Enviar relatórios</h1>
+        <p class="sub">Anexe os relatórios do seu sistema ERP. A equipe NEXO valida e processa.</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('cliente.dashboard') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar ao painel</a>
+    </div>
+</div>
+
+<div class="nota-pressao mb-4">
+    <i class="bi bi-shield-check"></i>
+    <span>Fluxo guiado: você <strong>fornece os arquivos</strong> (Vendas e Compras) e o <strong>consultor NEXO homologa</strong> antes de executar o motor de análise. Formatos aceitos: <strong>.csv</strong> e <strong>.xlsx</strong> exportados do seu PDV/ERP.</span>
+</div>
+
+{% if not analises %}
+<div class="nexo-card">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-inbox"></i></div>
+        <h3>Nenhuma análise aguardando relatórios.</h3>
+        <p>Quando a equipe NEXO abrir um novo período de análise para a sua empresa, ele aparecerá aqui para você anexar os arquivos.</p>
+    </div>
+</div>
+{% else %}
+{% for a in analises %}
+{% set up_v = (a.uploads | selectattr('tipo_relatorio', 'equalto', 'VENDAS') | list | first) %}
+{% set up_c = (a.uploads | selectattr('tipo_relatorio', 'equalto', 'COMPRAS') | list | first) %}
+<div class="nexo-card mb-4">
+    <div class="nexo-card-head">
+        <div>
+            <h2>Análise {{ 'Quinzenal' if a.tipo_analise == 'QUINZENAL' else 'Mensal' }} · ref. {{ '%02d'|format(a.mes_referencia) }}/{{ a.ano_referencia }}</h2>
+            <p class="sub">Período: {{ a.periodo_inicio.strftime('%d/%m/%Y') }} – {{ a.periodo_fim.strftime('%d/%m/%Y') }}</p>
+        </div>
+        {{ m.badge_analise(a.status_analise) }}
+    </div>
+    <div class="nexo-card-body">
+        <div class="row g-3">
+            {% for slot in [
+                {'tipo': 'VENDAS', 'titulo': 'Relatório de Vendas', 'desc': 'Giro de vendas por produto', 'up': up_v},
+                {'tipo': 'COMPRAS', 'titulo': 'Relatório de Compras', 'desc': 'Posição de compras do período', 'up': up_c}
+            ] %}
+            <div class="col-12 col-md-6">
+                <div class="upload-slot {{ 'is-done' if slot.up else '' }}">
+                    <div class="upload-slot-head">
+                        <div class="title"><i class="bi bi-filetype-csv"></i> {{ slot.titulo }}</div>
+                        {% if slot.up %}
+                            {% if slot.up.status_processamento == 'PROCESSADO' %}{{ m.badge_upload('PROCESSADO') }}
+                            {% elif slot.up.status_processamento == 'ERRO' %}{{ m.badge_upload('ERRO') }}
+                            {% else %}<span class="nexo-badge b-info"><span class="dot"></span>AGUARDANDO VALIDAÇÃO</span>{% endif %}
+                        {% else %}<span class="nexo-badge b-muted">NÃO ENVIADO</span>{% endif %}
+                    </div>
+                    <p class="field-hint">{{ slot.desc }} · CSV ou XLSX</p>
+                    <form method="POST" action="{{ url_for('cliente.upload') }}" enctype="multipart/form-data">
+                        <input type="hidden" name="id_analise" value="{{ a.id_analise }}">
+                        <input type="hidden" name="tipo_relatorio" value="{{ slot.tipo }}">
+                        <label class="dropzone" data-dz>
+                            <div class="dz-icon"><i class="bi bi-cloud-arrow-up"></i></div>
+                            <div class="dz-title" data-dz-label>{{ slot.up.nome_arquivo_original if slot.up else 'Arraste o arquivo ou clique para selecionar' }}</div>
+                            <div class="dz-hint">Formatos aceitos: .csv, .xlsx</div>
+                            <input type="file" name="arquivo" accept=".csv,.xlsx" data-dz-input>
+                        </label>
+                        <button type="submit" class="btn-ghost w-100 justify-content-center mt-3"><i class="bi bi-upload"></i> {{ 'Reenviar' if slot.up else 'Enviar' }} {{ slot.tipo|capitalize }}</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if up_v and up_c %}
+        <div class="nota-pressao mt-3" style="background:var(--success-bg);border-color:rgba(34,197,94,0.25);">
+            <i class="bi bi-check-circle"></i>
+            <span>Os dois relatórios foram recebidos. A equipe NEXO já pode validar e processar esta análise.</span>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* Dropzone visual: reflete o arquivo escolhido e o estado de drag (sem AJAX). */
+  document.querySelectorAll('[data-dz]').forEach(function (dz) {
+    var input = dz.querySelector('[data-dz-input]');
+    var label = dz.querySelector('[data-dz-label]');
+    if (input) {
+      input.addEventListener('change', function () {
+        if (input.files && input.files.length && label) label.textContent = input.files[0].name;
+      });
+    }
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('is-drag'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('is-drag'); });
+    });
+  });
+</script>
+{% endblock %}

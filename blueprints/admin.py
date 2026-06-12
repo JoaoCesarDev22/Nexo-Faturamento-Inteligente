@@ -10,9 +10,21 @@ from werkzeug.utils import secure_filename
 from sqlalchemy import select, func
 
 from extensions import db
-from models import Analise, UploadRelatorio, Empresa, Plano, Segmento, Usuario, RelatorioAnalise
+from models import (
+    Analise, UploadRelatorio, Empresa, Plano, Segmento, Usuario, RelatorioAnalise,
+    ChamadoSuporte, MensagemSuporte,
+)
 from etl_processor import processar_arquivos_analise
+from notifications import notificar_clientes_empresa
 from sqlalchemy.exc import IntegrityError
+
+# Categorias de ticket (token persistido -> rótulo exibido) — espelha cliente.py.
+CATEGORIAS_TICKET = {
+    "FINANCEIRO": "Financeiro",
+    "DUVIDA_TECNICA": "Dúvida Técnica",
+    "ERRO_INTEGRACAO": "Erro de Integração",
+}
+STATUS_CHAMADO = ("ABERTO", "EM_ATENDIMENTO", "RESOLVIDO")
 
 admin_bp = Blueprint("admin", __name__, url_prefix="/admin")
 
@@ -102,11 +114,35 @@ def dashboard():
         .limit(6)
     ).scalars().all()
 
+    # --- Fila de homologação: análises com anexos enviados pelo CLIENTE
+    #     (id_usuario_admin IS NULL) ainda PENDENTES de validação/ETL. ---
+    ids_pendentes = db.session.execute(
+        select(UploadRelatorio.id_analise)
+        .where(UploadRelatorio.id_usuario_admin.is_(None))
+        .where(UploadRelatorio.status_processamento == "PENDENTE")
+        .group_by(UploadRelatorio.id_analise)
+    ).scalars().all()
+
+    homologacoes = []
+    for id_a in ids_pendentes:
+        analise_p = db.session.get(Analise, id_a)
+        if analise_p is None:
+            continue
+        up_v = _buscar_upload(id_a, "VENDAS")
+        up_c = _buscar_upload(id_a, "COMPRAS")
+        homologacoes.append({
+            "analise": analise_p,
+            "tem_vendas": up_v is not None,
+            "tem_compras": up_c is not None,
+            "pronto": up_v is not None and up_c is not None,
+        })
+
     return render_template(
         "admin/dashboard.html",
         stats=stats,
         analises=analises,
         dashboard_data=dashboard_data,
+        homologacoes=homologacoes,
     )
 
 
@@ -544,6 +580,13 @@ def analise_relatorio(id_analise):
             rel.data_publicacao = agora
             analise.status_analise = "CONCLUIDO"
             analise.data_conclusao = agora
+            # Gatilho: devolutiva publicada → notifica o cliente com link direto.
+            ref = f"{analise.mes_referencia:02d}/{analise.ano_referencia}"
+            notificar_clientes_empresa(
+                analise.id_empresa,
+                f"Seu Relatório Estratégico de {ref} já está disponível! Clique para ver.",
+                url_for("cliente.analise", id_analise=analise.id_analise),
+            )
 
         elif acao == "despublicar":
             if analise.status_analise != "CONCLUIDO":
@@ -618,6 +661,13 @@ def processar_analise(id_analise):
         upload_compras.status_processamento = "PROCESSADO"
         upload_compras.data_processamento = agora
         upload_compras.mensagem_erro = None
+        # Gatilho: avisa o cliente que os relatórios foram homologados/processados.
+        ref = f"{analise.mes_referencia:02d}/{analise.ano_referencia}"
+        notificar_clientes_empresa(
+            analise.id_empresa,
+            f"Recebemos e processamos seus relatórios de {ref}. Sua devolutiva está em preparação.",
+            url_for("cliente.dashboard"),
+        )
         db.session.commit()
         return render_template("admin/processar_resultado.html", analise=analise, resultado=resultado)
 
@@ -702,3 +752,95 @@ def analise_deletar(id_analise):
 
     flash(f"Análise {id_str} ({titulo_emp}) excluída com sucesso.", "success")
     return redirect(url_for("admin.analises"))
+
+
+# =====================================================================
+# Suporte: painel central de chamados (consultor)
+# =====================================================================
+@admin_bp.route("/tickets")
+@admin_required
+def tickets():
+    """
+    Painel central de suporte: todos os chamados de todas as empresas,
+    agrupados por status (ABERTO / EM_ATENDIMENTO / RESOLVIDO).
+    """
+    todos = db.session.execute(
+        select(ChamadoSuporte)
+        .order_by(ChamadoSuporte.data_abertura.desc(), ChamadoSuporte.id_chamado.desc())
+    ).scalars().all()
+
+    grupos = {s: [] for s in STATUS_CHAMADO}
+    for c in todos:
+        grupos.setdefault(c.status_chamado, []).append(c)
+
+    return render_template(
+        "admin/tickets.html",
+        grupos=grupos, categorias=CATEGORIAS_TICKET, total=len(todos),
+    )
+
+
+@admin_bp.route("/tickets/<int:id_chamado>", methods=["GET", "POST"])
+@admin_required
+def ticket_detalhe(id_chamado):
+    """
+    Conversa de um chamado. Ações (campo `acao`):
+      - responder      → adiciona mensagem do consultor (+ EM_ATENDIMENTO se ABERTO)
+                         e notifica os clientes da empresa.
+      - alterar_status → muda status_chamado (ABERTO/EM_ATENDIMENTO/RESOLVIDO).
+    """
+    chamado = db.session.get(ChamadoSuporte, id_chamado)
+    if chamado is None:
+        flash("Chamado não encontrado.", "danger")
+        return redirect(url_for("admin.tickets"))
+
+    if request.method == "POST":
+        acao = (request.form.get("acao") or "").strip().lower()
+
+        if acao == "responder":
+            texto = (request.form.get("mensagem") or "").strip()
+            if not texto:
+                flash("Digite uma resposta.", "warning")
+                return redirect(url_for("admin.ticket_detalhe", id_chamado=id_chamado))
+            db.session.add(MensagemSuporte(
+                id_chamado=id_chamado,
+                id_usuario_remetente=current_user.id_usuario,
+                mensagem=texto,
+            ))
+            if chamado.status_chamado == "ABERTO":
+                chamado.status_chamado = "EM_ATENDIMENTO"
+            chamado.data_atualizacao = datetime.now(timezone.utc)
+            notificar_clientes_empresa(
+                chamado.id_empresa,
+                f"A equipe NEXO respondeu seu chamado “{chamado.assunto}”.",
+                url_for("cliente.ticket_detalhe", id_chamado=id_chamado),
+            )
+            db.session.commit()
+            flash("Resposta enviada ao cliente.", "success")
+
+        elif acao == "alterar_status":
+            novo = (request.form.get("status_chamado") or "").strip().upper()
+            if novo not in STATUS_CHAMADO:
+                flash("Status inválido.", "danger")
+                return redirect(url_for("admin.ticket_detalhe", id_chamado=id_chamado))
+            chamado.status_chamado = novo
+            chamado.data_atualizacao = datetime.now(timezone.utc)
+            if novo == "RESOLVIDO":
+                chamado.data_fechamento = datetime.now(timezone.utc)
+                notificar_clientes_empresa(
+                    chamado.id_empresa,
+                    f"Seu chamado “{chamado.assunto}” foi marcado como resolvido.",
+                    url_for("cliente.ticket_detalhe", id_chamado=id_chamado),
+                )
+            else:
+                chamado.data_fechamento = None
+            db.session.commit()
+            flash("Status do chamado atualizado.", "success")
+        else:
+            flash("Ação inválida.", "danger")
+
+        return redirect(url_for("admin.ticket_detalhe", id_chamado=id_chamado))
+
+    return render_template(
+        "admin/ticket_detalhe.html",
+        chamado=chamado, categorias=CATEGORIAS_TICKET, status_opcoes=STATUS_CHAMADO,
+    )

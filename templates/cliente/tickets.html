@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Suporte — NEXO{% endblock %}
+{% block page_title %}Suporte{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Central de suporte</h1>
+        <p class="sub">Abra um chamado para a equipe NEXO e acompanhe as respostas.</p>
+    </div>
+    <div class="page-head-actions">
+        <button type="button" class="btn-nexo" data-toggle-novo><i class="bi bi-plus-lg"></i> Novo chamado</button>
+    </div>
+</div>
+
+{# ---------------- Formulário de novo chamado ---------------- #}
+<div class="nexo-card mb-4 {{ '' if request.args.get('novo') else 'd-none' }}" id="formNovoChamado">
+    <div class="nexo-card-head"><div><h2>Abrir novo chamado</h2><p class="sub">Descreva sua dúvida ou problema</p></div></div>
+    <div class="nexo-card-body">
+        <form method="POST" action="{{ url_for('cliente.tickets') }}">
+            <div class="row g-3">
+                <div class="col-12 col-md-8">
+                    <label class="kpi-label">Assunto</label>
+                    <input type="text" name="assunto" class="form-control nexo-input" maxlength="160" placeholder="Resuma o assunto" required>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="kpi-label">Categoria</label>
+                    <select name="categoria" class="form-select nexo-input" required>
+                        <option value="" disabled selected>Selecione…</option>
+                        {% for token, rotulo in categorias.items() %}
+                        <option value="{{ token }}">{{ rotulo }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="kpi-label">Mensagem</label>
+                    <textarea name="mensagem" class="form-control nexo-input" rows="4" placeholder="Descreva com detalhes…" required></textarea>
+                </div>
+            </div>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <button type="button" class="btn-ghost" data-toggle-novo>Cancelar</button>
+                <button type="submit" class="btn-nexo"><i class="bi bi-send"></i> Abrir chamado</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# ---------------- Lista de chamados ---------------- #}
+{% if chamados %}
+<div class="table-wrap">
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead><tr><th>#</th><th>Assunto</th><th>Categoria</th><th>Status</th><th>Aberto em</th><th class="text-end">Ação</th></tr></thead>
+            <tbody>
+                {% for c in chamados %}
+                <tr>
+                    <td class="t-mono t-mut">{{ c.id_chamado }}</td>
+                    <td class="t-strong">{{ c.assunto }}</td>
+                    <td>{{ m.badge_categoria(c.categoria, categorias) }}</td>
+                    <td>{{ m.badge_chamado(c.status_chamado) }}</td>
+                    <td class="t-mut t-mono">{{ c.data_abertura.strftime('%d/%m/%Y') }}</td>
+                    <td class="text-end"><a href="{{ url_for('cliente.ticket_detalhe', id_chamado=c.id_chamado) }}" class="btn-ghost btn-sm-x"><i class="bi bi-chat-dots"></i> Abrir</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<div class="nexo-card">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-life-preserver"></i></div>
+        <h3>Você ainda não abriu nenhum chamado.</h3>
+        <p>Precisa de ajuda com sua análise, faturamento ou integração? Abra um chamado e a equipe NEXO responde por aqui.</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* Mostra/esconde o formulário de novo chamado. */
+  (function () {
+    var form = document.getElementById('formNovoChamado');
+    document.querySelectorAll('[data-toggle-novo]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (form) { form.classList.toggle('d-none'); if (!form.classList.contains('d-none')) form.scrollIntoView({behavior:'smooth'}); }
+      });
+    });
+  })();
+</script>
+{% endblock %}

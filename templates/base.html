@@ -58,13 +58,22 @@
             <a class="nav-item {{ 'active' if request.endpoint in ['admin.analises', 'admin.analise_nova', 'admin.analise_upload', 'admin.analise_relatorio', 'admin.processar_analise'] }}" href="{{ url_for('admin.analises') }}">
                 <i class="bi bi-clipboard-data"></i> Análises
             </a>
+            <a class="nav-item {{ 'active' if request.endpoint in ['admin.tickets', 'admin.ticket_detalhe'] }}" href="{{ url_for('admin.tickets') }}">
+                <i class="bi bi-life-preserver"></i> Suporte
+            </a>
             {% else %}
             <span class="nav-section">Minha Empresa</span>
             <a class="nav-item {{ 'active' if request.endpoint == 'cliente.dashboard' }}" href="{{ url_for('cliente.dashboard') }}">
                 <i class="bi bi-speedometer2"></i> Visão Geral
             </a>
+            <a class="nav-item {{ 'active' if request.endpoint == 'cliente.upload' }}" href="{{ url_for('cliente.upload') }}">
+                <i class="bi bi-cloud-arrow-up"></i> Enviar relatórios
+            </a>
             <a class="nav-item {{ 'active' if request.endpoint in ['cliente.historico', 'cliente.analise'] }}" href="{{ url_for('cliente.historico') }}">
                 <i class="bi bi-clock-history"></i> Histórico
+            </a>
+            <a class="nav-item {{ 'active' if request.endpoint in ['cliente.tickets', 'cliente.ticket_detalhe'] }}" href="{{ url_for('cliente.tickets') }}">
+                <i class="bi bi-life-preserver"></i> Suporte
             </a>
             {% endif %}
         </nav>
@@ -85,6 +94,35 @@
             </button>
             <div class="topbar-title">{% block page_title %}NEXO{% endblock %}</div>
             <div class="topbar-right">
+                {# ---------------- Sininho de notificações ---------------- #}
+                <div class="dropdown nexo-bell">
+                    <button class="bell-btn" type="button" id="bellBtn" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="Notificações">
+                        <i class="bi bi-bell"></i>
+                        {% if notif_nao_lidas and notif_nao_lidas > 0 %}
+                        <span class="bell-badge">{{ notif_nao_lidas if notif_nao_lidas < 100 else '99+' }}</span>
+                        {% endif %}
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end bell-menu" aria-labelledby="bellBtn">
+                        <div class="bell-head">
+                            <span>Notificações</span>
+                            {% if notif_nao_lidas and notif_nao_lidas > 0 %}
+                            <form method="POST" action="{{ url_for('notificacoes.marcar_lidas') }}" class="m-0">
+                                <button type="submit" class="bell-mark">Marcar todas como lidas</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        <div class="bell-list">
+                            {% for n in notif_recentes %}
+                            <a class="bell-item {{ 'is-unread' if not n.lida }}" href="{{ url_for('notificacoes.abrir', id_notificacao=n.id_notificacao) }}">
+                                <span class="bell-dot"></span>
+                                <span class="bell-text">{{ n.texto }}<small>{{ n.data_criacao.strftime('%d/%m %H:%M') }}</small></span>
+                            </a>
+                            {% else %}
+                            <div class="bell-empty"><i class="bi bi-bell-slash"></i> Nenhuma notificação ainda.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
                 <div class="user-chip">
                     <span class="user-avatar">{{ (current_user.nome or '?')[:1]|upper }}</span>
                     <div class="user-meta">
@@ -215,6 +253,63 @@
           scrollZoom: false,
           editable: false,
           showTips: false
+        });
+      };
+
+      /* Cores oficiais da Curva ABC (consistentes com os badges do CSS). */
+      NEXO.abcColor = { A: '#22c55e', B: '#f59e0b', C: '#9aa0b7' };
+
+      /* ---- Gráfico de barras HORIZONTAIS da Curva ABC (Top-N) ----
+         data = { labels:[...], values:[...], classes:['A','B',...] }
+         Barras coloridas pela Classe ABC; rank 1 no topo. */
+      NEXO.plotAbcBar = function (id, data) {
+        if (!data || !data.labels || !data.labels.length) return;
+        /* Plotly empilha o 1º item embaixo: invertendo, o líder fica no topo. */
+        var labels = data.labels.slice().reverse();
+        var values = data.values.slice().reverse();
+        var classes = (data.classes || []).slice().reverse();
+        var cores = classes.map(function (c) { return NEXO.abcColor[c] || '#9aa0b7'; });
+        NEXO.plot(id, [{
+          type: 'bar', orientation: 'h',
+          x: values, y: labels,
+          marker: { color: cores, line: { color: 'rgba(255,255,255,0.08)', width: 1 } },
+          customdata: classes,
+          hovertemplate: '<b>%{y}</b><br>R$ %{x:,.2f}<br>Classe %{customdata}<extra></extra>',
+          text: classes.map(function (c) { return 'Classe ' + c; }),
+          textposition: 'auto',
+          textfont: { color: '#0c0c14', size: 11, family: 'Inter, sans-serif' }
+        }], {
+          xaxis: { tickprefix: 'R$ ', tickformat: ',.0f', fixedrange: true, rangemode: 'tozero' },
+          yaxis: { fixedrange: true, automargin: true, tickfont: { size: 12 } },
+          height: 260, margin: { l: 8, r: 18, t: 14, b: 36 }, bargap: 0.35
+        });
+      };
+
+      /* ---- Gráfico de LINHA temporal Vendas x Compras ----
+         data = { labels:[...], vendas:[...], compras:[...] } */
+      NEXO.plotLinhaTemporal = function (id, data) {
+        if (!data || !data.labels || data.labels.length < 2) return;
+        NEXO.plot(id, [
+          {
+            type: 'scatter', mode: 'lines+markers', name: 'Vendas',
+            x: data.labels, y: data.vendas,
+            line: { color: '#22c55e', width: 3, shape: 'spline' },
+            marker: { size: 7, color: '#22c55e' },
+            hovertemplate: '<b>Vendas</b> %{x}<br>R$ %{y:,.2f}<extra></extra>'
+          },
+          {
+            type: 'scatter', mode: 'lines+markers', name: 'Compras',
+            x: data.labels, y: data.compras,
+            line: { color: '#f59e0b', width: 3, shape: 'spline' },
+            marker: { size: 7, color: '#f59e0b' },
+            hovertemplate: '<b>Compras</b> %{x}<br>R$ %{y:,.2f}<extra></extra>'
+          }
+        ], {
+          showlegend: true,
+          legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 12 } },
+          yaxis: { tickprefix: 'R$ ', tickformat: ',.0f', rangemode: 'tozero', fixedrange: true },
+          xaxis: { fixedrange: true, tickfont: { size: 12 } },
+          height: 280, margin: { l: 64, r: 18, t: 36, b: 42 }
         });
       };
     </script>

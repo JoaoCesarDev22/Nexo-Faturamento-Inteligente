@@ -46,13 +46,23 @@ from collections import namedtuple
 import pandas as pd
 from sqlalchemy import select
 
-from models import IndicadorAnalise
+from models import IndicadorAnalise, ProdutoCurvaABC
 
 logger = logging.getLogger(__name__)
 
 ResultadoETL = namedtuple(
     "ResultadoETL", ["sucesso", "mensagem", "kpis", "telemetria", "alertas"]
 )
+
+# Quantos produtos do topo do ranking persistir/exibir na Curva ABC.
+TOP_N_CURVA_ABC = 20
+
+# Limiares do Princípio de Pareto (Curva ABC) sobre o faturamento ACUMULADO:
+#   Classe A (Estratégicos): até 80%
+#   Classe B (Táticos):      de 80% a 95%
+#   Classe C (Operacionais): os ~5% restantes
+ABC_LIMITE_A = 80.0
+ABC_LIMITE_B = 95.0
 
 
 class ETLValidationError(Exception):
@@ -98,6 +108,17 @@ def _normalizar_produto(valor) -> str:
     s = re.sub(r"[^A-Z0-9 ]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s
+
+
+# Linhas que NÃO são produto e contaminam rankings/Curva ABC quando o PDV as
+# exporta como itens (ex.: "Descontos:" aparecendo como 50% do faturamento).
+# Comparadas contra o nome JÁ normalizado por _normalizar_produto (uppercase,
+# sem acento/pontuação). Match exato para não derrubar produtos reais.
+_NAO_PRODUTOS = {
+    "DESCONTO", "DESCONTOS", "ACRESCIMO", "ACRESCIMOS", "FRETE", "TROCO",
+    "TAXA", "TAXAS", "JUROS", "TOTAL", "SUBTOTAL", "TOTAL GERAL",
+    "ARREDONDAMENTO", "ENTRADA", "SANGRIA", "SUPRIMENTO",
+}
 
 
 # =====================================================================
@@ -409,7 +430,9 @@ def carregar_vendas(caminho: str) -> pd.DataFrame:
         df = df.drop(columns=["lucro"])
 
     df["_prod_norm"] = df["produto"].map(_normalizar_produto)
-    df = df[df["_prod_norm"] != ""].reset_index(drop=True)
+    # Remove vazios e linhas que não são produto (descontos, frete, troco...),
+    # que distorceriam o ranking de faturamento e a Curva ABC.
+    df = df[(df["_prod_norm"] != "") & (~df["_prod_norm"].isin(_NAO_PRODUTOS))].reset_index(drop=True)
     if df.empty:
         raise ETLValidationError(
             f"Relatório de VENDAS '{nome}' sem nomes de produto válidos após a limpeza."
@@ -449,6 +472,68 @@ def carregar_compras(caminho: str):
     if "produto" in df.columns:
         df["_prod_norm"] = df["produto"].map(_normalizar_produto)
     return df, coluna_valor
+
+
+# =====================================================================
+# 6b) Curva ABC (Princípio de Pareto) sobre o faturamento por produto
+# =====================================================================
+def _classificar_curva_abc(grupo: pd.DataFrame) -> dict:
+    """
+    Recebe o DataFrame já agregado por produto (colunas: _prod_norm, qtde, fat,
+    nome) e devolve um dict com:
+      - "produtos": lista (ordenada por faturamento desc) de dicts com posicao,
+        nome, faturamento, quantidade, perc_individual, perc_acumulado e classe.
+        Truncada em TOP_N_CURVA_ABC para persistência/exibição.
+      - "resumo": agregados por classe (qtd de produtos, faturamento e % do total)
+        calculados sobre o UNIVERSO COMPLETO de produtos (não só o top-N).
+
+    Regra Pareto: ordena por faturamento desc, acumula o percentual e classifica
+    A (<=80%), B (<=95%), C (resto). O produto líder é sempre Classe A — garante
+    que um único produto dominante não caia em C por ultrapassar o limiar sozinho.
+    """
+    base = grupo[grupo["fat"] > 0].sort_values("fat", ascending=False).reset_index(drop=True)
+    total = float(base["fat"].sum())
+    if base.empty or total <= 0:
+        return {"produtos": [], "resumo": []}
+
+    acumulado = 0.0
+    produtos = []
+    contagem = {"A": 0, "B": 0, "C": 0}
+    fat_classe = {"A": 0.0, "B": 0.0, "C": 0.0}
+
+    for i, row in base.iterrows():
+        fat = float(row["fat"])
+        perc_ind = fat / total * 100.0
+        acumulado += perc_ind
+        if i == 0 or acumulado <= ABC_LIMITE_A:
+            classe = "A"
+        elif acumulado <= ABC_LIMITE_B:
+            classe = "B"
+        else:
+            classe = "C"
+        contagem[classe] += 1
+        fat_classe[classe] += fat
+        if i < TOP_N_CURVA_ABC:
+            produtos.append({
+                "posicao": i + 1,
+                "nome": str(row["nome"]),
+                "faturamento": fat,
+                "quantidade": float(row["qtde"]) if "qtde" in base.columns else None,
+                "perc_individual": round(perc_ind, 2),
+                "perc_acumulado": round(min(acumulado, 100.0), 2),
+                "classe": classe,
+            })
+
+    resumo = [
+        {
+            "classe": c,
+            "qtd_produtos": contagem[c],
+            "faturamento": round(fat_classe[c], 2),
+            "perc_faturamento": round(fat_classe[c] / total * 100.0, 2) if total else 0.0,
+        }
+        for c in ("A", "B", "C")
+    ]
+    return {"produtos": produtos, "resumo": resumo}
 
 
 # =====================================================================
@@ -492,6 +577,9 @@ def calcular_kpis_em_memoria(caminho_vendas: str, caminho_compras: str) -> Resul
     linha_fat = candidatos_fat.iloc[0] if not candidatos_fat.empty else ranking_fat.iloc[0]
     produto_maior_faturamento_nome = str(linha_fat["nome"])
     produto_maior_faturamento_valor = float(linha_fat["fat"])
+
+    # ---- Curva ABC (Princípio de Pareto) sobre o faturamento por produto ----
+    curva_abc = _classificar_curva_abc(grupo)
 
     # ---- COMPRAS: total (nível NF) ----
     total_comprado = float(df_c[col_valor_c].sum())
@@ -578,6 +666,9 @@ def calcular_kpis_em_memoria(caminho_vendas: str, caminho_compras: str) -> Resul
         "produto_maior_faturamento_valor": produto_maior_faturamento_valor,
         "produto_maior_saldo_parado_nome": produto_maior_saldo_parado_nome,
         "saldo_estimado_parado": saldo_estimado_parado,
+        # Curva ABC: NÃO é um único KPI escalar; é o ranking + resumo por classe.
+        # Persistido em produto_curva_abc (1:N), não em indicador_analise.
+        "curva_abc": curva_abc,
     }
     return ResultadoETL(
         sucesso=True,
@@ -614,6 +705,33 @@ def _persistir_indicadores(db_session, id_analise: int, kpis: dict) -> None:
     indicador.data_geracao = datetime.utcnow()
 
 
+def _persistir_curva_abc(db_session, id_analise: int, kpis: dict) -> None:
+    """
+    Regrava (idempotente) o ranking ABC do top-N em produto_curva_abc:
+    apaga as linhas anteriores desta análise e insere o ranking novo. Reflete
+    o reprocessamento — cada execução do ETL substitui a Curva ABC anterior.
+    """
+    # Limpa o ranking anterior desta análise (reprocessamento limpo).
+    antigos = db_session.execute(
+        select(ProdutoCurvaABC).where(ProdutoCurvaABC.id_analise == id_analise)
+    ).scalars().all()
+    for linha in antigos:
+        db_session.delete(linha)
+    db_session.flush()
+
+    for p in kpis.get("curva_abc", {}).get("produtos", []):
+        db_session.add(ProdutoCurvaABC(
+            id_analise=id_analise,
+            posicao_ranking=p["posicao"],
+            produto_nome=p["nome"],
+            faturamento=p["faturamento"],
+            quantidade=p.get("quantidade"),
+            percentual_individual=p["perc_individual"],
+            percentual_acumulado=p["perc_acumulado"],
+            classe_abc=p["classe"],
+        ))
+
+
 def processar_arquivos_analise(caminho_vendas: str, caminho_compras: str,
                                id_analise: int, db_session) -> ResultadoETL:
     """
@@ -624,8 +742,9 @@ def processar_arquivos_analise(caminho_vendas: str, caminho_compras: str,
     try:
         resultado = calcular_kpis_em_memoria(caminho_vendas, caminho_compras)
         _persistir_indicadores(db_session, id_analise, resultado.kpis)
+        _persistir_curva_abc(db_session, id_analise, resultado.kpis)
         return resultado._replace(
-            mensagem="Processamento concluído. KPIs consolidados persistidos em indicador_analise."
+            mensagem="Processamento concluído. KPIs consolidados + Curva ABC persistidos."
         )
     except ETLValidationError as e:
         logger.warning("Validação do ETL falhou: %s", e)

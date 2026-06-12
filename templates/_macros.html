@@ -91,3 +91,52 @@
     <span>Sinalização gerencial estimada. Não representa lucro, margem, CMV nem estoque físico real.</span>
 </div>
 {%- endmacro -%}
+
+{# ---- Badge da Classe na Curva ABC (Princípio de Pareto) ---- #}
+{%- macro badge_abc(classe) -%}
+{%- if classe == 'A' -%}<span class="abc-badge abc-a" title="Estratégico — núcleo do faturamento">A</span>
+{%- elif classe == 'B' -%}<span class="abc-badge abc-b" title="Tático — faturamento intermediário">B</span>
+{%- elif classe == 'C' -%}<span class="abc-badge abc-c" title="Operacional — cauda longa">C</span>
+{%- else -%}<span class="abc-badge abc-muted">{{ classe }}</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{# ---- Card-semáforo de risco (5W2H): recebe um dict de insights.gerar_semaforos ---- #}
+{%- macro semaforo_card(card) -%}
+{%- set icone = {'critico': 'bi-exclamation-octagon-fill', 'atencao': 'bi-exclamation-triangle-fill', 'oportunidade': 'bi-graph-up-arrow'}.get(card.nivel, 'bi-info-circle') -%}
+<div class="semaforo-card s-{{ card.nivel }}">
+    <div class="sc-head">
+        <span class="sc-dot"><i class="bi {{ icone }}"></i></span>
+        <span class="sc-title">{{ card.titulo }}</span>
+    </div>
+    <div class="sc-row"><span class="sc-key">O que fazer</span><span class="sc-val">{{ card.o_que_fazer }}</span></div>
+    <div class="sc-row"><span class="sc-key">Por que fazer</span><span class="sc-val">{{ card.por_que }}</span></div>
+</div>
+{%- endmacro -%}
+
+{# ---- Badge: status do chamado de suporte (ChamadoSuporte.status_chamado) ---- #}
+{%- macro badge_chamado(status) -%}
+{%- if status == 'RESOLVIDO' -%}<span class="nexo-badge b-green"><span class="dot"></span>Resolvido</span>
+{%- elif status == 'EM_ATENDIMENTO' -%}<span class="nexo-badge b-info"><span class="dot"></span>Em atendimento</span>
+{%- elif status == 'ABERTO' -%}<span class="nexo-badge b-amber"><span class="dot"></span>Aberto</span>
+{%- else -%}<span class="nexo-badge b-muted">{{ status }}</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{# ---- Badge: categoria do chamado (recebe o dict de rótulos) ---- #}
+{%- macro badge_categoria(categoria, rotulos) -%}
+{%- set rotulo = rotulos.get(categoria, categoria) if rotulos else categoria -%}
+{%- if categoria == 'FINANCEIRO' -%}<span class="cat-badge cat-fin"><i class="bi bi-cash-coin"></i> {{ rotulo }}</span>
+{%- elif categoria == 'DUVIDA_TECNICA' -%}<span class="cat-badge cat-tec"><i class="bi bi-question-circle"></i> {{ rotulo }}</span>
+{%- elif categoria == 'ERRO_INTEGRACAO' -%}<span class="cat-badge cat-err"><i class="bi bi-plug"></i> {{ rotulo }}</span>
+{%- else -%}<span class="cat-badge">{{ rotulo }}</span>
+{%- endif -%}
+{%- endmacro -%}
+
+{# ---- Legenda metodológica da Curva ABC (embasamento Pareto 80-20) ---- #}
+{%- macro nota_abc() -%}
+<div class="nota-pressao nota-abc">
+    <i class="bi bi-bezier2"></i>
+    <span><strong>Curva ABC (Princípio de Pareto):</strong> Classe A = até 80% do faturamento acumulado (estratégicos), Classe B = 80–95% (táticos), Classe C = ~5% restantes (operacionais).</span>
+</div>
+{%- endmacro -%}

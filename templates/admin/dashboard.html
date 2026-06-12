@@ -114,6 +114,41 @@
     </div>
 </div>
 
+{# ---------------- Fila de homologação: uploads enviados por clientes ---------------- #}
+{% if homologacoes %}
+<div class="nexo-card mb-4" style="border-color:rgba(56,189,248,0.3);">
+    <div class="nexo-card-head">
+        <div><h2><i class="bi bi-inbox-fill text-purple"></i> Homologação de relatórios de clientes</h2><p class="sub">{{ homologacoes|length }} análise(s) com anexos enviados pelo cliente aguardando validação</p></div>
+    </div>
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead>
+                <tr><th>Empresa</th><th>Referência</th><th>Vendas</th><th>Compras</th><th class="text-end">Ação</th></tr>
+            </thead>
+            <tbody>
+                {% for h in homologacoes %}
+                <tr>
+                    <td class="t-strong">{{ h.analise.empresa.nome_fantasia or h.analise.empresa.razao_social }}</td>
+                    <td class="t-mut t-mono">{{ '%02d'|format(h.analise.mes_referencia) }}/{{ h.analise.ano_referencia }}</td>
+                    <td>{% if h.tem_vendas %}<span class="nexo-badge b-green"><span class="dot"></span>Recebido</span>{% else %}<span class="nexo-badge b-muted">Pendente</span>{% endif %}</td>
+                    <td>{% if h.tem_compras %}<span class="nexo-badge b-green"><span class="dot"></span>Recebido</span>{% else %}<span class="nexo-badge b-muted">Pendente</span>{% endif %}</td>
+                    <td class="text-end">
+                        {% if h.pronto %}
+                        <form method="POST" action="{{ url_for('admin.processar_analise', id_analise=h.analise.id_analise) }}" style="display:inline;">
+                            <button type="submit" class="btn-nexo btn-sm-x"><i class="bi bi-cpu"></i> Homologar e Executar Motor ETL</button>
+                        </form>
+                        {% else %}
+                        <a href="{{ url_for('admin.analise_upload', id_analise=h.analise.id_analise) }}" class="btn-ghost btn-sm-x"><i class="bi bi-box-arrow-up-right"></i> Revisar</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
 {# ---------------- Últimas análises (dados reais) ---------------- #}
 <div class="table-wrap">
     <div class="nexo-card-head">

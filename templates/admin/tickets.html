@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Suporte — NEXO Admin{% endblock %}
+{% block page_title %}Central de Suporte{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Central de suporte</h1>
+        <p class="sub">{{ total }} chamado(s) de todas as empresas da carteira.</p>
+    </div>
+</div>
+
+{% set secoes = [
+    {'status': 'ABERTO', 'titulo': 'Pendentes (Abertos)', 'icone': 'bi-exclamation-circle', 'cor': 'b-amber'},
+    {'status': 'EM_ATENDIMENTO', 'titulo': 'Em atendimento', 'icone': 'bi-chat-left-dots', 'cor': 'b-info'},
+    {'status': 'RESOLVIDO', 'titulo': 'Resolvidos', 'icone': 'bi-check-circle', 'cor': 'b-green'}
+] %}
+
+{% if total == 0 %}
+<div class="nexo-card">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-life-preserver"></i></div>
+        <h3>Nenhum chamado aberto.</h3>
+        <p>Quando um cliente abrir um chamado de suporte, ele aparecerá aqui agrupado por status.</p>
+    </div>
+</div>
+{% else %}
+{% for s in secoes %}
+{% set lista = grupos.get(s.status, []) %}
+<div class="nexo-card-head px-0 mb-2" style="border:none;">
+    <div><h2><i class="bi {{ s.icone }} text-purple"></i> {{ s.titulo }} <span class="count-pill">{{ lista|length }}</span></h2></div>
+</div>
+{% if lista %}
+<div class="table-wrap mb-4">
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead><tr><th>#</th><th>Empresa</th><th>Assunto</th><th>Categoria</th><th>Atualizado</th><th class="text-end">Ação</th></tr></thead>
+            <tbody>
+                {% for c in lista %}
+                <tr>
+                    <td class="t-mono t-mut">{{ c.id_chamado }}</td>
+                    <td class="t-strong">{{ c.empresa.nome_fantasia or c.empresa.razao_social }}</td>
+                    <td>{{ c.assunto }}</td>
+                    <td>{{ m.badge_categoria(c.categoria, categorias) }}</td>
+                    <td class="t-mut t-mono">{{ (c.data_atualizacao or c.data_abertura).strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td class="text-end"><a href="{{ url_for('admin.ticket_detalhe', id_chamado=c.id_chamado) }}" class="btn-ghost btn-sm-x"><i class="bi bi-chat-dots"></i> Responder</a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<p class="text-dim mb-4" style="font-size:0.9rem;">Nenhum chamado neste status.</p>
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endblock %}

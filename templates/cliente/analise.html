@@ -49,10 +49,49 @@
     </div>
 </div>
 
-<div class="nexo-card mb-5">
-    <div class="nexo-card-head"><div><h2>Compras x Vendas</h2><p class="sub">Comparativo do período</p></div></div>
-    <div class="nexo-card-body"><div id="chartAnaliseCli" class="chart-box sm"></div></div>
+<div class="row g-3 mb-5">
+    <div class="col-12 col-lg-5">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head"><div><h2>Compras x Vendas</h2><p class="sub">Comparativo do período</p></div></div>
+            <div class="nexo-card-body"><div id="chartAnaliseCli" class="chart-box sm"></div></div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-7">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head"><div><h2>Curva ABC · Top 5 produtos</h2><p class="sub">Classificação por faturamento (Pareto)</p></div></div>
+            <div class="nexo-card-body">
+                {% if abc_chart %}<div id="chartAbcAnalise" class="chart-box sm"></div>{% else %}
+                <p class="text-muted-2 mb-0" style="font-size:0.9rem;">Curva ABC não disponível para esta análise.</p>{% endif %}
+            </div>
+        </div>
+    </div>
 </div>
+
+{% if analise.curva_abc %}
+<div class="nexo-card-head px-0" style="border:none;">
+    <div><h2><i class="bi bi-bezier2 text-purple"></i> Classificação ABC dos produtos</h2></div>
+</div>
+<div class="table-wrap mb-3">
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead><tr><th>#</th><th>Produto</th><th>Classe</th><th class="text-end">Faturamento</th><th class="text-end">% individual</th><th class="text-end">% acumulado</th></tr></thead>
+            <tbody>
+                {% for p in analise.curva_abc[:10] %}
+                <tr>
+                    <td class="t-mono t-mut">{{ p.posicao_ranking }}</td>
+                    <td>{{ p.produto_nome }}</td>
+                    <td>{{ m.badge_abc(p.classe_abc) }}</td>
+                    <td class="text-end t-mono">R$ {{ m.brl(p.faturamento) }}</td>
+                    <td class="text-end t-mono t-mut">{{ '%.1f'|format(p.percentual_individual|float) }}%</td>
+                    <td class="text-end t-mono t-mut">{{ '%.1f'|format(p.percentual_acumulado|float) }}%</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+<div class="mb-5">{{ m.nota_abc() }}</div>
+{% endif %}
 {% else %}
 <div class="nexo-card mb-5">
     <div class="empty-state">
@@ -63,9 +102,19 @@
 </div>
 {% endif %}
 
-{# ===================== Seção 2 — Relatório estratégico ===================== #}
+{# ===================== Seção 2 — Síntese executiva (semáforos 5W2H) ===================== #}
+{% if semaforos %}
 <div class="nexo-card-head px-0" style="border:none;">
-    <div><h2><i class="bi bi-file-earmark-text text-purple"></i> Relatório estratégico</h2></div>
+    <div><h2><i class="bi bi-stoplights text-purple"></i> Síntese executiva</h2><p class="sub">Indicadores de risco e oportunidade · ação direta (5W2H)</p></div>
+</div>
+<div class="semaforo-grid mb-5">
+    {% for card in semaforos %}{{ m.semaforo_card(card) }}{% endfor %}
+</div>
+{% endif %}
+
+{# ===================== Seção 3 — Devolutiva do consultor ===================== #}
+<div class="nexo-card-head px-0" style="border:none;">
+    <div><h2><i class="bi bi-file-earmark-text text-purple"></i> Devolutiva do consultor</h2></div>
 </div>
 <div class="nexo-card">
     <div class="nexo-card-body relatorio-doc">
@@ -73,24 +122,6 @@
         <div class="relatorio-block">
             <div class="rb-label"><i class="bi bi-card-text"></i> Resumo executivo</div>
             <div class="rb-body">{{ rel.resumo_executivo }}</div>
-        </div>
-        {% endif %}
-        {% if rel.pontos_positivos %}
-        <div class="relatorio-block">
-            <div class="rb-label"><i class="bi bi-hand-thumbs-up"></i> Pontos positivos</div>
-            <div class="rb-body">{{ rel.pontos_positivos }}</div>
-        </div>
-        {% endif %}
-        {% if rel.pontos_de_alerta %}
-        <div class="relatorio-block">
-            <div class="rb-label"><i class="bi bi-exclamation-triangle"></i> Pontos de alerta</div>
-            <div class="rb-body">{{ rel.pontos_de_alerta }}</div>
-        </div>
-        {% endif %}
-        {% if rel.recomendacoes %}
-        <div class="relatorio-block">
-            <div class="rb-label"><i class="bi bi-lightbulb"></i> Recomendações</div>
-            <div class="rb-body">{{ rel.recomendacoes }}</div>
         </div>
         {% endif %}
         <div class="relatorio-block is-conclusao mb-0">
@@ -113,5 +144,11 @@
     hovertemplate: '%{x}: R$ %{y:,.2f}<extra></extra>'
   }], { yaxis: { tickprefix: 'R$ ', rangemode: 'tozero' }, height: 240 });
 </script>
+{% if abc_chart %}
+<script>
+  window.NEXO_ABC = {{ abc_chart|tojson }};
+  NEXO.plotAbcBar('chartAbcAnalise', window.NEXO_ABC);
+</script>
+{% endif %}
 {% endif %}
 {% endblock %}

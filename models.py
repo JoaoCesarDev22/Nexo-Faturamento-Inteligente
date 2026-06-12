@@ -202,6 +202,11 @@ class Analise(db.Model):
     uploads = relationship("UploadRelatorio", back_populates="analise")
     indicador = relationship("IndicadorAnalise", back_populates="analise", uselist=False)
     relatorio = relationship("RelatorioAnalise", back_populates="analise", uselist=False)
+    curva_abc = relationship(
+        "ProdutoCurvaABC",
+        back_populates="analise",
+        order_by="ProdutoCurvaABC.posicao_ranking",
+    )
 
     __table_args__ = (
         CheckConstraint("mes_referencia BETWEEN 1 AND 12"),
@@ -227,7 +232,10 @@ class UploadRelatorio(db.Model):
 
     id_upload: Mapped[int] = mapped_column(primary_key=True)
     id_analise: Mapped[int] = mapped_column(ForeignKey("analise.id_analise"), nullable=False)
-    id_usuario_admin: Mapped[int] = mapped_column(ForeignKey("usuario.id_usuario"), nullable=False)
+    # Quem enviou o arquivo. NULL = enviado pelo PRÓPRIO CLIENTE (self-service
+    # onboarding) e ainda aguardando homologação do consultor. Preenchido com o
+    # id do ADMIN quando o upload é feito/homologado pelo time NEXO.
+    id_usuario_admin: Mapped[Optional[int]] = mapped_column(ForeignKey("usuario.id_usuario"))
     tipo_relatorio: Mapped[str] = mapped_column(String, nullable=False)
     nome_arquivo_original: Mapped[str] = mapped_column(String, nullable=False)
     caminho_arquivo: Mapped[str] = mapped_column(String, nullable=False)
@@ -251,6 +259,12 @@ class UploadRelatorio(db.Model):
         CheckConstraint("status_processamento IN ('PENDENTE', 'PROCESSADO', 'ERRO')"),
         UniqueConstraint("id_analise", "tipo_relatorio", name="uq_upload_analise_tipo"),
     )
+
+    @property
+    def enviado_por_cliente(self) -> bool:
+        """True quando o arquivo foi anexado pelo próprio cliente (sem admin),
+        aguardando homologação do consultor."""
+        return self.id_usuario_admin is None
 
 
 # =====================================================================
@@ -301,3 +315,146 @@ class RelatorioAnalise(db.Model):
     data_publicacao: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     analise = relationship("Analise", back_populates="relatorio")
+
+
+# =====================================================================
+# 9. ProdutoCurvaABC  (embasamento metodológico — Princípio de Pareto)
+# =====================================================================
+class ProdutoCurvaABC(db.Model):
+    """
+    Ranking de produtos por faturamento de uma análise, classificados pela
+    Curva ABC (Princípio de Pareto / regra 80-20):
+
+        Classe A (Estratégicos):  produtos até 80% do faturamento acumulado.
+        Classe B (Táticos):       de 80% a 95% do faturamento acumulado.
+        Classe C (Operacionais):  os ~5% restantes (cauda longa).
+
+    Diferente de indicador_analise (KPIs consolidados 1:1 com a análise), aqui
+    persistimos uma LINHA POR PRODUTO do topo do ranking (top-N), o que viabiliza
+    o gráfico de barras horizontais coloridas por classe no painel do cliente.
+
+    Mantém a regra inegociável do ETL: NÃO há lucro/margem/CMV — apenas
+    faturamento agregado por produto, que é dado bruto honesto do PDV.
+    """
+    __tablename__ = "produto_curva_abc"
+
+    id_produto_abc: Mapped[int] = mapped_column(primary_key=True)
+    id_analise: Mapped[int] = mapped_column(ForeignKey("analise.id_analise"), nullable=False)
+    posicao_ranking: Mapped[int] = mapped_column(Integer, nullable=False)
+    produto_nome: Mapped[str] = mapped_column(String, nullable=False)
+    faturamento: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
+    quantidade: Mapped[Optional[Decimal]] = mapped_column(Numeric)
+    percentual_individual: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
+    percentual_acumulado: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
+    classe_abc: Mapped[str] = mapped_column(String, nullable=False)
+    data_geracao: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    analise = relationship("Analise", back_populates="curva_abc")
+
+    __table_args__ = (
+        CheckConstraint("classe_abc IN ('A', 'B', 'C')"),
+        UniqueConstraint("id_analise", "posicao_ranking", name="uq_abc_analise_posicao"),
+        Index("ix_abc_analise", "id_analise"),
+    )
+
+
+# =====================================================================
+# 10. ChamadoSuporte  (REATIVAÇÃO da tabela documentada chamado_suporte)
+# =====================================================================
+class ChamadoSuporte(db.Model):
+    """
+    Ticket de suporte aberto por um usuário CLIENTE para a equipe NEXO.
+    Reativa a tabela `chamado_suporte` que já existia no DER como documentação
+    (pós-PI3), adaptada ao escopo atual:
+      - adicionado `categoria` (Financeiro / Dúvida Técnica / Erro de Integração);
+      - `status_chamado` simplificado para 3 estados (ABERTO / EM_ATENDIMENTO /
+        RESOLVIDO);
+      - `prioridade` mantido (documentado), default MEDIA — não exposto na UI.
+    O campo `assunto` é o título do ticket.
+    """
+    __tablename__ = "chamado_suporte"
+
+    id_chamado: Mapped[int] = mapped_column(primary_key=True)
+    id_empresa: Mapped[int] = mapped_column(ForeignKey("empresa.id_empresa"), nullable=False)
+    id_usuario_cliente: Mapped[int] = mapped_column(ForeignKey("usuario.id_usuario"), nullable=False)
+    assunto: Mapped[str] = mapped_column(String, nullable=False)
+    categoria: Mapped[str] = mapped_column(String, nullable=False)
+    status_chamado: Mapped[str] = mapped_column(String, nullable=False, default="ABERTO")
+    prioridade: Mapped[str] = mapped_column(String, nullable=False, default="MEDIA")
+    data_abertura: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    data_atualizacao: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    data_fechamento: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    empresa = relationship("Empresa")
+    usuario_cliente = relationship("Usuario")
+    mensagens = relationship(
+        "MensagemSuporte",
+        back_populates="chamado",
+        order_by="MensagemSuporte.data_envio",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "categoria IN ('FINANCEIRO', 'DUVIDA_TECNICA', 'ERRO_INTEGRACAO')"
+        ),
+        CheckConstraint(
+            "status_chamado IN ('ABERTO', 'EM_ATENDIMENTO', 'RESOLVIDO')"
+        ),
+        CheckConstraint("prioridade IN ('BAIXA', 'MEDIA', 'ALTA')"),
+        Index("ix_chamado_empresa", "id_empresa"),
+    )
+
+
+# =====================================================================
+# 11. MensagemSuporte  (REATIVAÇÃO da tabela documentada mensagem_suporte)
+# =====================================================================
+class MensagemSuporte(db.Model):
+    """Mensagem dentro de um chamado (conversa cliente ↔ consultor)."""
+    __tablename__ = "mensagem_suporte"
+
+    id_mensagem: Mapped[int] = mapped_column(primary_key=True)
+    id_chamado: Mapped[int] = mapped_column(ForeignKey("chamado_suporte.id_chamado"), nullable=False)
+    id_usuario_remetente: Mapped[int] = mapped_column(ForeignKey("usuario.id_usuario"), nullable=False)
+    mensagem: Mapped[str] = mapped_column(Text, nullable=False)
+    data_envio: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    lida: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    chamado = relationship("ChamadoSuporte", back_populates="mensagens")
+    remetente = relationship("Usuario")
+
+    __table_args__ = (
+        Index("ix_mensagem_chamado", "id_chamado"),
+    )
+
+
+# =====================================================================
+# 12. Notificacao  (sininho da navbar — engajamento)
+# =====================================================================
+class Notificacao(db.Model):
+    """
+    Notificação dirigida a UM usuário (cliente ou admin). Alimenta o sininho
+    da navbar. Gerada por gatilhos do sistema (upload de cliente, homologação,
+    publicação de análise, resposta em ticket).
+    """
+    __tablename__ = "notificacao"
+
+    id_notificacao: Mapped[int] = mapped_column(primary_key=True)
+    id_usuario: Mapped[int] = mapped_column(ForeignKey("usuario.id_usuario"), nullable=False)
+    texto: Mapped[str] = mapped_column(String, nullable=False)
+    link_destino: Mapped[Optional[str]] = mapped_column(String)
+    lida: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    data_criacao: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    usuario = relationship("Usuario")
+
+    __table_args__ = (
+        Index("ix_notificacao_usuario", "id_usuario"),
+    )

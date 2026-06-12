@@ -71,6 +71,16 @@
 </div>
 <div class="mb-4">{{ m.nota_pressao() }}</div>
 
+{# ---------------- Síntese executiva: semáforos de risco (5W2H) ---------------- #}
+{% if semaforos %}
+<div class="nexo-card-head px-0 mb-2" style="border:none;">
+    <div><h2><i class="bi bi-stoplights text-purple"></i> Síntese executiva</h2><p class="sub">Indicadores de risco e oportunidade · ação direta</p></div>
+</div>
+<div class="semaforo-grid mb-4">
+    {% for card in semaforos %}{{ m.semaforo_card(card) }}{% endfor %}
+</div>
+{% endif %}
+
 <div class="row g-3 mb-4">
     <div class="col-12 col-md-4">
         <div class="kpi-tile"><div class="kpi-top"><span class="kpi-label">Produto mais vendido</span><span class="kpi-icon"><i class="bi bi-trophy"></i></span></div><div class="fw-bold mt-1">{{ ind.produto_mais_vendido_nome or '—' }}</div><div class="kpi-foot">{{ m.num(ind.produto_mais_vendido_quantidade) }} un</div></div>
@@ -105,6 +115,34 @@
                 <p class="text-muted-2" style="font-size:0.9rem;">{{ (analise.relatorio.conclusao_estrategica or '')|truncate(160) }}</p>
                 {% endif %}
                 <a href="{{ url_for('cliente.analise', id_analise=analise.id_analise) }}" class="btn-nexo mt-2"><i class="bi bi-file-earmark-text"></i> Abrir análise completa</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ---------------- Curva ABC (Pareto) + histórico temporal ---------------- #}
+<div class="row g-3 mb-4">
+    <div class="col-12 col-lg-7">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head"><div><h2>Curva ABC · Top 5 produtos</h2><p class="sub">Classificação por faturamento (Princípio de Pareto)</p></div></div>
+            <div class="nexo-card-body">
+                {% if dashboard_data.curva_abc %}<div id="chartAbcCliente" class="chart-box sm"></div>
+                <div class="mt-2">{{ m.nota_abc() }}</div>
+                {% else %}<p class="text-muted-2 mb-0" style="font-size:0.9rem;">Curva ABC indisponível para o período.</p>{% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-5">
+        <div class="nexo-card h-100">
+            <div class="nexo-card-head"><div><h2>Histórico comparativo</h2><p class="sub">Vendas x Compras ao longo do tempo</p></div></div>
+            <div class="nexo-card-body">
+                {% if dashboard_data.historico %}<div id="chartHistoricoCliente" class="chart-box sm"></div>
+                {% else %}
+                <div class="empty-state" style="padding:24px 8px;">
+                    <div class="es-icon"><i class="bi bi-graph-up"></i></div>
+                    <p class="mb-0" style="font-size:0.9rem;">O histórico comparativo aparece a partir da 2ª análise publicada.</p>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -304,6 +342,16 @@
       }, 150);
     }
   })();
+
+  /* ---- Gráfico 3 — Curva ABC (barras horizontais coloridas por classe) ---- */
+  if (dashboardData.curva_abc) {
+    NEXO.plotAbcBar('chartAbcCliente', dashboardData.curva_abc);
+  }
+
+  /* ---- Gráfico 4 — Histórico comparativo Vendas x Compras (linha) ---- */
+  if (dashboardData.historico) {
+    NEXO.plotLinhaTemporal('chartHistoricoCliente', dashboardData.historico);
+  }
 </script>
 {% endif %}
 {% endblock %}

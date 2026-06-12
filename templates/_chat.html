@@ -1,0 +1,28 @@
+{# ===================================================================
+   NEXO — Macro de conversa de chamado (chat).
+   Importar com:  {% import "_chat.html" as chat %}
+   Uso:  {{ chat.conversa(chamado.mensagens, current_user.id_usuario) }}
+   Alinha à direita as mensagens do usuário logado; à esquerda as da
+   contraparte. Identifica o autor pelo papel (Consultor NEXO vs Cliente).
+   =================================================================== #}
+{%- macro conversa(mensagens, meu_id) -%}
+<div class="chat-thread">
+    {% for msg in mensagens %}
+    {% set is_admin = msg.remetente and msg.remetente.role == 'ADMIN' %}
+    {% set mine = msg.id_usuario_remetente == meu_id %}
+    <div class="chat-msg {{ 'is-mine' if mine else 'is-theirs' }}">
+        <div class="chat-bubble {{ 'b-admin' if is_admin else 'b-cliente' }}">
+            <div class="chat-meta">
+                <span class="chat-author">
+                    {% if is_admin %}<i class="bi bi-headset"></i> Consultor NEXO{% else %}<i class="bi bi-person"></i> {{ msg.remetente.nome if msg.remetente else 'Cliente' }}{% endif %}
+                </span>
+                <span class="chat-time">{{ msg.data_envio.strftime('%d/%m/%Y %H:%M') }}</span>
+            </div>
+            <div class="chat-text">{{ msg.mensagem }}</div>
+        </div>
+    </div>
+    {% else %}
+    <div class="bell-empty"><i class="bi bi-chat-dots"></i> Sem mensagens ainda.</div>
+    {% endfor %}
+</div>
+{%- endmacro -%}

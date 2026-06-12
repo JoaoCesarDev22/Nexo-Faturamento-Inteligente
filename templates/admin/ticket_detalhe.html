@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% import "_chat.html" as chat %}
+
+{% block title %}Chamado #{{ chamado.id_chamado }} — NEXO Admin{% endblock %}
+{% block page_title %}Chamado #{{ chamado.id_chamado }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>{{ chamado.assunto }}</h1>
+        <p class="sub">{{ chamado.empresa.nome_fantasia or chamado.empresa.razao_social }} · {{ m.badge_categoria(chamado.categoria, categorias) }} · aberto em {{ chamado.data_abertura.strftime('%d/%m/%Y') }}</p>
+    </div>
+    <div class="page-head-actions">
+        {{ m.badge_chamado(chamado.status_chamado) }}
+        <a href="{{ url_for('admin.tickets') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-12 col-lg-8">
+        <div class="nexo-card">
+            <div class="nexo-card-body">
+                {{ chat.conversa(chamado.mensagens, current_user.id_usuario) }}
+
+                <form method="POST" action="{{ url_for('admin.ticket_detalhe', id_chamado=chamado.id_chamado) }}" class="chat-reply mt-3">
+                    <input type="hidden" name="acao" value="responder">
+                    <textarea name="mensagem" class="form-control nexo-input" rows="3" placeholder="Escreva a resposta ao cliente…" required></textarea>
+                    <div class="d-flex justify-content-end mt-2">
+                        <button type="submit" class="btn-nexo"><i class="bi bi-send"></i> Responder cliente</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    {# ---------------- Painel lateral: status ---------------- #}
+    <div class="col-12 col-lg-4">
+        <div class="nexo-card">
+            <div class="nexo-card-head"><div><h2>Status do chamado</h2></div></div>
+            <div class="nexo-card-body">
+                <form method="POST" action="{{ url_for('admin.ticket_detalhe', id_chamado=chamado.id_chamado) }}">
+                    <input type="hidden" name="acao" value="alterar_status">
+                    <label class="kpi-label">Alterar status</label>
+                    <select name="status_chamado" class="form-select nexo-input mb-3">
+                        {% for st in status_opcoes %}
+                        <option value="{{ st }}" {{ 'selected' if st == chamado.status_chamado }}>
+                            {{ {'ABERTO':'Aberto','EM_ATENDIMENTO':'Em atendimento','RESOLVIDO':'Resolvido'}[st] }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn-ghost w-100 justify-content-center"><i class="bi bi-arrow-repeat"></i> Atualizar status</button>
+                </form>
+                <hr class="my-3" style="border-color:var(--border);">
+                <div class="kpi-label">Cliente</div>
+                <div class="fw-bold">{{ chamado.usuario_cliente.nome if chamado.usuario_cliente else '—' }}</div>
+                <div class="t-mut" style="font-size:0.85rem;">{{ chamado.empresa.razao_social }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

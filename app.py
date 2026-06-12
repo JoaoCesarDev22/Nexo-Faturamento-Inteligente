@@ -95,10 +95,21 @@ def create_app(config_name: str = None) -> Flask:
     from blueprints.auth import auth_bp
     from blueprints.admin import admin_bp
     from blueprints.cliente import cliente_bp
+    from blueprints.notificacoes import notificacoes_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(cliente_bp, url_prefix="/cliente")
+    app.register_blueprint(notificacoes_bp)
+
+    # Context processor: injeta os dados do sininho (contagem + 5 recentes) em
+    # TODA página renderizada, para o usuário autenticado. Mantém o template
+    # base.html agnóstico de qual rota o serviu.
+    from notifications import contexto_sininho
+
+    @app.context_processor
+    def _injeta_sininho():
+        return contexto_sininho(current_user)
 
     # Rota raiz: serve a landing page institucional (entrada comercial pública).
     # Usuários já autenticados também caem aqui — basta clicar em "Acessar portal"
