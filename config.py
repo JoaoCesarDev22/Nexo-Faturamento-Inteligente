@@ -93,6 +93,21 @@ class Config:
     MAX_CONTENT_LENGTH = int(
         os.environ.get("MAX_CONTENT_LENGTH_MB", 20)
     ) * 1024 * 1024  # MB → bytes
+
+    # === E-mail (Flask-Mail / SMTP) ===
+    MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
+    MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
+    MAIL_USE_SSL = os.environ.get("MAIL_USE_SSL", "false").lower() == "true"
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME") or None
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD") or None
+    MAIL_DEFAULT_SENDER = os.environ.get(
+        "MAIL_DEFAULT_SENDER",
+        os.environ.get("MAIL_USERNAME") or "nexofaturamentointeligente@gmail.com",
+    )
+    # Quando não há credenciais, o envio é suprimido pela camada emails.py
+    # (sem quebrar fluxos). Flag derivada para checagem rápida nos gatilhos.
+    MAIL_ATIVO = bool(MAIL_USERNAME and MAIL_PASSWORD)
     # Formatos REALMENTE suportados pelo ETL. .xls fica de fora porque não há
     # dependência (xlrd) nem caminho de leitura — não anunciamos o que não lemos.
     ALLOWED_EXTENSIONS = {"csv", "xlsx"}

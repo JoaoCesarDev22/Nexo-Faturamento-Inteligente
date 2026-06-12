@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#0c0c14;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#0c0c14;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:92%;background-color:#13131d;border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,0.07);">
+
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);padding:26px 32px;">
+          <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:0.5px;">NEXO</span>
+          <span style="color:rgba(255,255,255,0.85);font-size:13px;font-weight:500;"> · Faturamento Inteligente</span>
+        </td></tr>
+
+        <!-- Content -->
+        <tr><td style="padding:32px;color:#e8e9f0;font-size:15px;line-height:1.6;">
+          {% block content %}{% endblock %}
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="padding:20px 32px;border-top:1px solid rgba(255,255,255,0.07);color:#6a7088;font-size:12px;line-height:1.5;">
+          Este é um e-mail automático do sistema NEXO. As métricas referem-se a sinalização gerencial estimada
+          (faturamento e Curva ABC) — não representam lucro, margem ou CMV.<br>
+          © NEXO — Faturamento Inteligente.
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

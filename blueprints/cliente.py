@@ -26,7 +26,8 @@ from functools import wraps
 from pathlib import Path
 
 from flask import (
-    Blueprint, render_template, abort, request, redirect, url_for, flash, current_app
+    Blueprint, render_template, abort, request, redirect, url_for, flash, current_app,
+    Response,
 )
 from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
@@ -39,6 +40,7 @@ from models import (
 )
 from insights import gerar_semaforos
 from notifications import notificar_admins
+from pdf_export import gerar_pdf_analise
 
 cliente_bp = Blueprint("cliente", __name__)
 
@@ -207,6 +209,29 @@ def analise(id_analise):
         analise=analise,
         semaforos=semaforos,
         abc_chart=abc_chart,
+    )
+
+
+@cliente_bp.route("/analise/<int:id_analise>/pdf")
+@cliente_required
+def analise_pdf(id_analise):
+    """Exporta a Análise Executiva (ABC + 5W2H + devolutiva) em PDF (ReportLab)."""
+    analise = db.session.get(Analise, id_analise)
+    if (
+        analise is None
+        or analise.id_empresa != current_user.empresa.id_empresa
+        or analise.status_analise != "CONCLUIDO"
+        or analise.relatorio is None
+        or not analise.relatorio.publicado
+    ):
+        abort(404)
+
+    semaforos = gerar_semaforos(analise.indicador, analise.curva_abc) if analise.indicador else []
+    pdf_bytes = gerar_pdf_analise(analise, semaforos, analise.curva_abc)
+    nome = f"analise_nexo_{analise.ano_referencia}{analise.mes_referencia:02d}_{analise.id_analise}.pdf"
+    return Response(
+        pdf_bytes, mimetype="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
     )
 
 

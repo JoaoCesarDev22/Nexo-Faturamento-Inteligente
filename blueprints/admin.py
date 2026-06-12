@@ -16,6 +16,7 @@ from models import (
 )
 from etl_processor import processar_arquivos_analise
 from notifications import notificar_clientes_empresa
+from emails import email_analise_publicada, email_ticket_resolvido
 from sqlalchemy.exc import IntegrityError
 
 # Categorias de ticket (token persistido -> rótulo exibido) — espelha cliente.py.
@@ -580,12 +581,16 @@ def analise_relatorio(id_analise):
             rel.data_publicacao = agora
             analise.status_analise = "CONCLUIDO"
             analise.data_conclusao = agora
-            # Gatilho: devolutiva publicada → notifica o cliente com link direto.
+            # Gatilho: devolutiva publicada → notifica o cliente (sininho + e-mail).
             ref = f"{analise.mes_referencia:02d}/{analise.ano_referencia}"
             notificar_clientes_empresa(
                 analise.id_empresa,
                 f"Seu Relatório Estratégico de {ref} já está disponível! Clique para ver.",
                 url_for("cliente.analise", id_analise=analise.id_analise),
+            )
+            email_analise_publicada(
+                analise,
+                url_for("cliente.analise", id_analise=analise.id_analise, _external=True),
             )
 
         elif acao == "despublicar":
@@ -830,6 +835,10 @@ def ticket_detalhe(id_chamado):
                     chamado.id_empresa,
                     f"Seu chamado “{chamado.assunto}” foi marcado como resolvido.",
                     url_for("cliente.ticket_detalhe", id_chamado=id_chamado),
+                )
+                email_ticket_resolvido(
+                    chamado,
+                    url_for("cliente.ticket_detalhe", id_chamado=id_chamado, _external=True),
                 )
             else:
                 chamado.data_fechamento = None

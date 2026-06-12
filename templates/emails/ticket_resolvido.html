@@ -1,0 +1,27 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h1 style="margin:0 0 8px;font-size:20px;color:#ffffff;">Seu chamado foi resolvido ✅</h1>
+<p style="margin:0 0 18px;color:#c4c6d2;">
+  Olá! O time NEXO marcou o seu chamado de suporte como
+  <strong style="color:#6ee7a8;">resolvido</strong>.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#181824;border-radius:12px;border:1px solid rgba(255,255,255,0.07);border-left:4px solid #22c55e;margin-bottom:22px;">
+  <tr><td style="padding:18px 20px;">
+    <div style="color:#9aa0b7;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">Chamado #{{ chamado.id_chamado }}</div>
+    <div style="color:#ffffff;font-size:16px;font-weight:700;">{{ chamado.assunto }}</div>
+  </td></tr>
+</table>
+
+<p style="margin:0 0 22px;color:#c4c6d2;">
+  Se ainda precisar de ajuda, é só responder pelo portal que o chamado é reaberto automaticamente.
+</p>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+  <tr><td style="border-radius:10px;background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);">
+    <a href="{{ link_url }}" style="display:inline-block;padding:13px 28px;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;">
+      Ver conversa do chamado →
+    </a>
+  </td></tr>
+</table>
+{% endblock %}

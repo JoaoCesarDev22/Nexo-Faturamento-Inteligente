@@ -23,7 +23,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from config import config_by_name
-from extensions import db, login_manager, migrate
+from extensions import db, login_manager, migrate, mail
 
 
 def _set_sqlite_pragma(dbapi_connection, connection_record):
@@ -84,6 +84,7 @@ def create_app(config_name: str = None) -> Flask:
     # Flask-Migrate precisa enxergar os modelos — importados logo abaixo no
     # user_loader/blueprints; aqui basta registrar db + app.
     migrate.init_app(app, db)
+    mail.init_app(app)
 
     # Configura logging básico
     logging.basicConfig(

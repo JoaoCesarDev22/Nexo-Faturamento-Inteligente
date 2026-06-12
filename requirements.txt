@@ -16,3 +16,7 @@ openpyxl==3.1.5
 # Infra cloud — migração SQLite -> Supabase (Postgres)
 psycopg2-binary==2.9.9
 Flask-Migrate==4.0.7
+
+# Engajamento e entregáveis
+Flask-Mail==0.10.0       # SMTP — e-mails HTML (tickets, publicação de análise)
+reportlab==4.2.5         # PDF — exportação da análise executiva (ABC + 5W2H)
