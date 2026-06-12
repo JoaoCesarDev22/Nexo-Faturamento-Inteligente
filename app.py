@@ -23,7 +23,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from config import config_by_name
-from extensions import db, login_manager
+from extensions import db, login_manager, migrate
 
 
 def _set_sqlite_pragma(dbapi_connection, connection_record):
@@ -67,6 +67,12 @@ def create_app(config_name: str = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_by_name[config_name])
 
+    # Modo DIRETO de banco: usado por DDL/migrações (Alembic) para falar com o
+    # Postgres na conexão direta (5432) em vez do PgBouncer (6543). Ativado por
+    #   NEXO_DB_DIRECT=1 flask db upgrade
+    if os.environ.get("NEXO_DB_DIRECT") == "1":
+        app.config["SQLALCHEMY_DATABASE_URI"] = app.config["SQLALCHEMY_DIRECT_URI"]
+
     # Garante que a pasta instance/ exista (onde o SQLite vai morar).
     Path(app.instance_path).mkdir(parents=True, exist_ok=True)
     # E a pasta de uploads.
@@ -75,6 +81,9 @@ def create_app(config_name: str = None) -> Flask:
     # Inicializa extensões
     db.init_app(app)
     login_manager.init_app(app)
+    # Flask-Migrate precisa enxergar os modelos — importados logo abaixo no
+    # user_loader/blueprints; aqui basta registrar db + app.
+    migrate.init_app(app, db)
 
     # Configura logging básico
     logging.basicConfig(

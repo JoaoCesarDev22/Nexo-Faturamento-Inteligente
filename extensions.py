@@ -8,6 +8,7 @@ Isso evita import circular entre models.py e app.py.
 
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
+from flask_migrate import Migrate
 from sqlalchemy.orm import DeclarativeBase
 
 
@@ -19,6 +20,8 @@ class Base(DeclarativeBase):
 # Instância única usada em toda a aplicação.
 db = SQLAlchemy(model_class=Base)
 login_manager = LoginManager()
+# Flask-Migrate (Alembic): versionamento de schema do Postgres/Supabase.
+migrate = Migrate()
 
 # Rota para onde Flask-Login redireciona quando @login_required falha.
 login_manager.login_view = "auth.login"

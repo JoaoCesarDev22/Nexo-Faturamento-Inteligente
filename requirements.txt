@@ -12,3 +12,7 @@ Werkzeug==3.0.4
 # Semana 2 — motor de ETL
 pandas==3.0.3
 openpyxl==3.1.5
+
+# Infra cloud — migração SQLite -> Supabase (Postgres)
+psycopg2-binary==2.9.9
+Flask-Migrate==4.0.7
