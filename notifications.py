@@ -23,6 +23,24 @@ from models import Notificacao, Usuario
 logger = logging.getLogger(__name__)
 
 
+def classificar_notificacao(texto: str) -> dict:
+    """
+    Classifica uma notificação em um TIPO visual de badge, a partir do texto.
+    Fonte única de verdade usada tanto no render do servidor (Jinja) quanto no
+    payload do Socket.IO (JS) — assim a badge é idêntica nos dois caminhos.
+
+      resolvido -> verde   (chamado encerrado)
+      analise   -> roxo    (nova análise / relatório disponível)
+      aberto    -> vermelho/rosa (ação pendente: novo chamado, resposta, upload)
+    """
+    t = (texto or "").lower()
+    if "resolvid" in t:
+        return {"tipo": "resolvido", "rotulo": "Resolvido"}
+    if ("dispon" in t) or ("relatório estrat" in t) or ("relatorio estrat" in t) or ("processamos" in t):
+        return {"tipo": "analise", "rotulo": "Nova Análise"}
+    return {"tipo": "aberto", "rotulo": "Aberto"}
+
+
 def _emitir_tempo_real(id_usuario: int, n: Notificacao) -> None:
     """
     Emite o evento WebSocket 'nova_notificacao' para a sala do usuário-alvo.
@@ -31,6 +49,7 @@ def _emitir_tempo_real(id_usuario: int, n: Notificacao) -> None:
     então uma eventual emissão perdida se autocorrige.
     """
     try:
+        badge = classificar_notificacao(n.texto)
         socketio.emit(
             "nova_notificacao",
             {
@@ -38,6 +57,8 @@ def _emitir_tempo_real(id_usuario: int, n: Notificacao) -> None:
                 "texto": n.texto,
                 "link": n.link_destino or "",
                 "hora": datetime.now().strftime("%d/%m %H:%M"),
+                "badge": badge["tipo"],
+                "badge_rotulo": badge["rotulo"],
             },
             room=f"user_{id_usuario}",
         )

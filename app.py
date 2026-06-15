@@ -118,11 +118,14 @@ def create_app(config_name: str = None) -> Flask:
     # Context processor: injeta os dados do sininho (contagem + 5 recentes) em
     # TODA página renderizada, para o usuário autenticado. Mantém o template
     # base.html agnóstico de qual rota o serviu.
-    from notifications import contexto_sininho
+    from notifications import contexto_sininho, classificar_notificacao
 
     @app.context_processor
     def _injeta_sininho():
         return contexto_sininho(current_user)
+
+    # Expõe o classificador de badge ao template (mesma lógica do payload do socket).
+    app.jinja_env.globals["badge_notif"] = classificar_notificacao
 
     # Rota raiz: serve a landing page institucional (entrada comercial pública).
     # Usuários já autenticados também caem aqui — basta clicar em "Acessar portal"

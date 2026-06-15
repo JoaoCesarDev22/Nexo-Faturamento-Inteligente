@@ -400,16 +400,26 @@ a { text-decoration: none; }
 
 /* ===================== KPI TILES ================================= */
 .kpi-tile {
-  background: linear-gradient(180deg, var(--surface-2), var(--surface));
-  border: 1px solid var(--border);
+  /* Glassmorphism: fundo escuro translúcido + desfoque (igual ao sininho) */
+  background: rgba(20, 20, 30, 0.55);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
   padding: 20px 22px;
   height: 100%;
   position: relative;
   overflow: hidden;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  transition: all 0.3s ease;
 }
-.kpi-tile:hover { transform: translateY(-3px); border-color: var(--border-strong); box-shadow: var(--shadow-lg); }
+/* Efeito lift + glow dinâmico (reflexo roxo neon na base) no hover */
+.kpi-tile:hover {
+  transform: translateY(-4px);
+  border-color: rgba(168, 85, 247, 0.38);
+  box-shadow:
+    0 18px 40px -16px rgba(0, 0, 0, 0.72),
+    0 10px 30px -8px rgba(168, 85, 247, 0.45);
+}
 .kpi-tile::after {
   content: ""; position: absolute; right: -40px; top: -40px;
   width: 120px; height: 120px; border-radius: 50%;
@@ -433,9 +443,10 @@ a { text-decoration: none; }
   /* Fluid: ~1.25rem em telas estreitas (~320px) até ~1.95rem em telas largas (~1440px+).
      Substitui o tamanho fixo de 1.85rem que cortava valores como "R$ -1.234.567,89". */
   font-size: clamp(1.25rem, 0.9rem + 1.4vw, 1.95rem);
-  font-weight: 700;
+  font-weight: 800;
   line-height: 1.15;
   letter-spacing: -0.02em;
+  color: var(--text);
   /* Dígitos de largura igual no JetBrains Mono evitam "respiração" entre valores. */
   font-variant-numeric: tabular-nums;
   /* Última linha de defesa contra valores grotescos: quebra controlada
@@ -461,19 +472,26 @@ a { text-decoration: none; }
 .nexo-table thead th {
   font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
   color: var(--text-dim); text-align: left;
-  padding: 13px 18px;
-  background: rgba(255, 255, 255, 0.015);
-  border-bottom: 1px solid var(--border);
+  padding: 15px 22px;                      /* respiro maior no cabeçalho */
+  background: rgba(255, 255, 255, 0.028);  /* header levemente destacado */
+  border-bottom: 1px solid var(--border-strong);
   white-space: nowrap;
 }
 .nexo-table tbody td {
-  padding: 14px 18px;
+  padding: 16px 22px;                      /* células com mais respiro */
   border-bottom: 1px solid var(--border);
   font-size: 0.9rem; color: var(--text);
   vertical-align: middle;
 }
-.nexo-table tbody tr { transition: background 0.14s ease; }
-.nexo-table tbody tr:hover { background: var(--surface-hover); }
+.nexo-table tbody tr { transition: background 0.14s ease, box-shadow 0.14s ease; }
+/* Zebra moderno: linhas pares com tom escuro sutilmente diferente */
+.nexo-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.022); }
+/* Row highlight: realce roxo translúcido + cursor pointer (vence a zebra) */
+.nexo-table tbody tr:hover {
+  background: rgba(168, 85, 247, 0.10);
+  box-shadow: inset 3px 0 0 var(--primary);
+  cursor: pointer;
+}
 .nexo-table tbody tr:last-child td { border-bottom: none; }
 .nexo-table .t-strong { font-weight: 600; }
 .nexo-table .t-mut { color: var(--text-muted); }
@@ -962,3 +980,47 @@ input, textarea, select, option,
   100% { transform: scale(1); }
 }
 .bell-badge.pulse { animation: bell-pulse 0.55s ease; }
+
+/* ===================================================================
+   DROPDOWN DO SININHO — acabamento premium (glassmorphism)
+   Sobrescreve/estende o bloco base do sininho mais acima.
+   =================================================================== */
+.bell-menu {
+  padding: 0;
+  background: rgba(16, 16, 24, 0.72);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  backdrop-filter: blur(16px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px -18px rgba(0,0,0,0.78), 0 0 0 1px rgba(168,85,247,0.07);
+}
+
+/* Cabeçalho interno fixo */
+.bell-head { background: rgba(20, 20, 30, 0.55); }
+.bell-head-title { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 0.92rem; color: var(--text); }
+.bell-head-title i { color: var(--primary); }
+
+/* Rodapé interno: botão discreto "Marcar todas como lidas" */
+.bell-foot { padding: 10px 12px; border-top: 1px solid var(--border); background: rgba(20, 20, 30, 0.5); }
+.bell-foot .bell-mark {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  width: 100%; padding: 8px 10px; border-radius: 9px;
+  background: rgba(168, 85, 247, 0.10); border: 1px solid rgba(168, 85, 247, 0.22);
+  color: #c4a0fb; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.bell-foot .bell-mark:hover { background: rgba(168, 85, 247, 0.20); color: #e9defc; text-decoration: none; }
+
+/* Item: hover premium + cursor pointer */
+.bell-item { gap: 10px; cursor: pointer; transition: background 0.14s ease, box-shadow 0.14s ease; }
+.bell-item:hover { background: rgba(168, 85, 247, 0.12); box-shadow: inset 2px 0 0 var(--primary); }
+.bell-msg { display: block; }
+
+/* Badges de status dentro da notificação */
+.nbadge {
+  display: inline-block; margin-bottom: 4px; padding: 1px 8px; border-radius: 999px;
+  font-size: 0.62rem; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase;
+  border: 1px solid transparent; line-height: 1.5;
+}
+.nb-aberto    { background: rgba(244, 63, 94, 0.16);  color: #fda4c0; border-color: rgba(244, 63, 94, 0.40); text-shadow: 0 0 8px rgba(244, 63, 94, 0.45); }
+.nb-resolvido { background: rgba(34, 197, 94, 0.15);  color: #6ee7a8; border-color: rgba(34, 197, 94, 0.40); }
+.nb-analise   { background: rgba(168, 85, 247, 0.16); color: #d8c2fd; border-color: rgba(168, 85, 247, 0.42); text-shadow: 0 0 8px rgba(168, 85, 247, 0.4); }

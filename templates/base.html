@@ -103,19 +103,26 @@
                     </button>
                     <div class="dropdown-menu dropdown-menu-end bell-menu" aria-labelledby="bellBtn">
                         <div class="bell-head">
-                            <span>Notificações</span>
-                            <form method="POST" action="{{ url_for('notificacoes.marcar_lidas') }}" class="m-0" id="bellMarkForm" {% if _c == 0 %}style="display:none;"{% endif %}>
-                                <button type="submit" class="bell-mark">Marcar todas como lidas</button>
-                            </form>
+                            <span class="bell-head-title"><i class="bi bi-bell-fill"></i> Notificações</span>
                         </div>
                         <div class="bell-list" id="bellList">
                             {% for n in notif_recentes %}
+                            {% set _b = badge_notif(n.texto) %}
                             <a class="bell-item {{ 'is-unread' if not n.lida }}" href="{{ url_for('notificacoes.abrir', id_notificacao=n.id_notificacao) }}">
                                 <span class="bell-dot"></span>
-                                <span class="bell-text">{{ n.texto }}<small>{{ n.data_criacao.strftime('%d/%m %H:%M') }}</small></span>
+                                <span class="bell-text">
+                                    <span class="nbadge nb-{{ _b.tipo }}">{{ _b.rotulo }}</span>
+                                    <span class="bell-msg">{{ n.texto }}</span>
+                                    <small>{{ n.data_criacao.strftime('%d/%m %H:%M') }}</small>
+                                </span>
                             </a>
                             {% endfor %}
                             <div class="bell-empty" id="bellEmpty" {% if notif_recentes %}style="display:none;"{% endif %}><i class="bi bi-bell-slash"></i> Nenhuma notificação ainda.</div>
+                        </div>
+                        <div class="bell-foot" id="bellFoot" {% if _c == 0 %}style="display:none;"{% endif %}>
+                            <form method="POST" action="{{ url_for('notificacoes.marcar_lidas') }}" class="m-0" id="bellMarkForm">
+                                <button type="submit" class="bell-mark"><i class="bi bi-check2-all"></i> Marcar todas como lidas</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -352,7 +359,9 @@
         var badge = document.getElementById('bellBadge');
         var list = document.getElementById('bellList');
         var empty = document.getElementById('bellEmpty');
-        var markForm = document.getElementById('bellMarkForm');
+        var foot = document.getElementById('bellFoot');
+
+        var ROTULO_PADRAO = { aberto: 'Aberto', resolvido: 'Resolvido', analise: 'Nova Análise' };
 
         function escapeHtml(s) {
           var d = document.createElement('div');
@@ -390,16 +399,19 @@
             void badge.offsetWidth;        // reinicia a animação
             badge.classList.add('pulse');
           }
-          if (markForm) markForm.style.display = '';
+          if (foot) foot.style.display = '';
           if (empty) empty.style.display = 'none';
 
-          // 2) Injeta a notificação no topo do dropdown
+          // 2) Injeta a notificação no topo do dropdown (com badge de status)
           if (list) {
+            var tipo = n.badge || 'aberto';
+            var rotulo = n.badge_rotulo || ROTULO_PADRAO[tipo] || 'Aberto';
             var a = document.createElement('a');
             a.className = 'bell-item is-unread';
             a.href = '/notificacoes/' + n.id + '/abrir';
             a.innerHTML = '<span class="bell-dot"></span><span class="bell-text">' +
-                          escapeHtml(n.texto) +
+                          '<span class="nbadge nb-' + escapeHtml(tipo) + '">' + escapeHtml(rotulo) + '</span>' +
+                          '<span class="bell-msg">' + escapeHtml(n.texto) + '</span>' +
                           '<small>' + escapeHtml(n.hora || '') + '</small></span>';
             var first = list.querySelector('.bell-item');
             if (first) { list.insertBefore(a, first); } else { list.insertBefore(a, list.firstChild); }
