@@ -286,6 +286,10 @@ class IndicadorAnalise(db.Model):
     produto_maior_faturamento_valor: Mapped[Optional[Decimal]] = mapped_column(Numeric)
     produto_maior_saldo_parado_nome: Mapped[Optional[str]] = mapped_column(String)
     saldo_estimado_parado: Mapped[Optional[Decimal]] = mapped_column(Numeric)
+    # Período REAL coberto pela base, lido do cabeçalho do relatório do PDV
+    # (via pandas no ETL). Pode ser nulo se o relatório não declarar período.
+    periodo_base_inicio: Mapped[Optional[date]] = mapped_column(Date)
+    periodo_base_fim: Mapped[Optional[date]] = mapped_column(Date)
     versao_processamento: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     data_geracao: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()

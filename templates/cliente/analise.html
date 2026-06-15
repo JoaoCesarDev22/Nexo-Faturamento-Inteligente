@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
+{% import "_auditoria.html" as audit %}
 
 {% block title %}Análise publicada — NEXO{% endblock %}
 {% block page_title %}Análise{% endblock %}
@@ -19,6 +20,9 @@
         <a href="{{ url_for('cliente.dashboard') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar ao painel</a>
     </div>
 </div>
+
+{# ---------------- Barra de auditoria: origem dos dados desta análise ---------------- #}
+{{ audit.barra(auditoria) }}
 
 {# ===================== Seção 1 — Indicadores ===================== #}
 <div class="nexo-card-head px-0" style="border:none;">

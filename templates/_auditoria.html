@@ -1,0 +1,39 @@
+{# ===================================================================
+   NEXO — Barra de auditoria de origem dos dados (reutilizável).
+   Importar com:  {% import "_auditoria.html" as audit %}
+   Uso:  {{ audit.barra(auditoria) }}   (auditoria vem de cliente._auditoria)
+   Mostra empresa/base, período (lido do relatório via pandas) e arquivos,
+   com o selo de origem do Motor ETL Nexo. Não renderiza nada se auditoria=None.
+   =================================================================== #}
+{%- macro barra(auditoria) -%}
+{% if auditoria %}
+<div class="audit-bar mb-4">
+    <div class="audit-row">
+        <div class="audit-item">
+            <span class="audit-ico"><i class="bi bi-database-check"></i></span>
+            <div><span class="audit-k">Base de dados</span><span class="audit-v">{{ auditoria.empresa }}</span></div>
+        </div>
+        <div class="audit-sep"></div>
+        <div class="audit-item">
+            <span class="audit-ico"><i class="bi bi-calendar3"></i></span>
+            <div>
+                <span class="audit-k">Período dos dados {% if auditoria.periodo_derivado %}<i class="bi bi-magic" title="Lido automaticamente do cabeçalho do relatório importado"></i>{% endif %}</span>
+                <span class="audit-v">{{ auditoria.periodo_inicio.strftime('%d/%m/%Y') }} a {{ auditoria.periodo_fim.strftime('%d/%m/%Y') }}</span>
+            </div>
+        </div>
+        <div class="audit-sep"></div>
+        <div class="audit-item">
+            <span class="audit-ico"><i class="bi bi-file-earmark-spreadsheet"></i></span>
+            <div>
+                <span class="audit-k">Arquivo(s) importado(s)</span>
+                <span class="audit-v t-mono">{{ auditoria.arquivo_vendas or '—' }}{% if auditoria.arquivo_compras %} · {{ auditoria.arquivo_compras }}{% endif %}</span>
+            </div>
+        </div>
+    </div>
+    <div class="audit-foot">
+        <i class="bi bi-shield-check"></i>
+        Análise gerada pelo <strong>Motor ETL Nexo v1.0</strong> — dados processados localmente com integridade garantida.
+    </div>
+</div>
+{% endif %}
+{%- endmacro -%}
