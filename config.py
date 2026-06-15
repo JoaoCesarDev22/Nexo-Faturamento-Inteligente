@@ -7,6 +7,7 @@ e evita espalhar os.environ.get() pelo código.
 """
 
 import os
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
@@ -74,6 +75,16 @@ class Config:
     # === Flask ===
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-key-trocar-em-producao")
 
+    # === Sessão (segurança / anti login-automático) ===
+    # SESSION_PERMANENT=False -> cookie de sessão (sem Expires): expira quando o
+    # navegador fecha. PERMANENT_SESSION_LIFETIME só vale se algo marcar a sessão
+    # como permanente; deixamos curto por defesa.
+    SESSION_PERMANENT = False
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8)
+    SESSION_COOKIE_HTTPONLY = True          # JS não lê o cookie de sessão
+    SESSION_COOKIE_SAMESITE = "Lax"         # mitiga CSRF em navegação cross-site
+    # SESSION_COOKIE_SECURE é ligado só em produção (HTTPS) — ver ProductionConfig.
+
     # === SQLAlchemy ===
     SQLALCHEMY_DATABASE_URI = _resolve_database_uri()
     # URI direta (5432) para Alembic/Flask-Migrate. A app usa a pooled (6543);
@@ -126,6 +137,8 @@ class ProductionConfig(Config):
     DEBUG = False
     # Em produção, SECRET_KEY DEVE vir do ambiente. Sem fallback.
     SECRET_KEY = os.environ["SECRET_KEY"]
+    # HTTPS em produção: cookie de sessão só trafega em conexão segura.
+    SESSION_COOKIE_SECURE = True
 
 
 # Dicionário usado pela factory para escolher config por nome.

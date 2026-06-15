@@ -14,11 +14,12 @@ EVENT LISTENER CRÍTICO:
 """
 
 import os
+import secrets
 import logging
 from pathlib import Path
 
-from flask import Flask, redirect, url_for, render_template
-from flask_login import current_user
+from flask import Flask, redirect, url_for, render_template, session, request
+from flask_login import current_user, logout_user
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
@@ -67,6 +68,13 @@ def create_app(config_name: str = None) -> Flask:
     app = Flask(__name__, instance_relative_config=True)
     app.config.from_object(config_by_name[config_name])
 
+    # Identificador único deste BOOT do servidor. Como a SECRET_KEY é fixa, os
+    # cookies de sessão sobreviveriam a um restart e re-logariam o usuário
+    # automaticamente. Carimbamos a sessão com este BOOT_ID no login e, a cada
+    # request, invalidamos qualquer sessão de um boot anterior (ver guard abaixo).
+    # Resultado: derrubar/subir o servidor SEMPRE exige novo login.
+    app.config["BOOT_ID"] = secrets.token_hex(8)
+
     # Modo DIRETO de banco: usado por DDL/migrações (Alembic) para falar com o
     # Postgres na conexão direta (5432) em vez do PgBouncer (6543). Ativado por
     #   NEXO_DB_DIRECT=1 flask db upgrade
@@ -103,6 +111,27 @@ def create_app(config_name: str = None) -> Flask:
     def load_user(user_id: str):
         # Usuario.id_usuario é INTEGER; Flask-Login passa como string.
         return db.session.get(Usuario, int(user_id))
+
+    @app.before_request
+    def _guard_sessao():
+        """
+        Blindagem contra login automático:
+          1) Sessão carimbada com um BOOT_ID diferente do atual = sobrou de um
+             boot anterior do servidor (ou nunca foi carimbada) → desloga e
+             limpa, forçando novo login após restart.
+          2) Cookie órfão: aponta para um usuário que não existe mais no banco
+             (ex.: banco resetado) → current_user vira anônimo, mas o resíduo
+             _user_id é limpo da sessão.
+        Não toca em requisições de assets estáticos (sem custo por arquivo).
+        """
+        if request.endpoint == "static":
+            return
+        if current_user.is_authenticated:
+            if session.get("boot_id") != app.config["BOOT_ID"]:
+                logout_user()
+                session.clear()
+        elif "_user_id" in session:
+            session.clear()
 
     # Registra blueprints
     from blueprints.auth import auth_bp
