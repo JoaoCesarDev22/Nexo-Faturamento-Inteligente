@@ -90,3 +90,13 @@ def email_ticket_resolvido(chamado, link_url: str) -> bool:
         "ticket_resolvido.html",
         chamado=chamado, link_url=link_url,
     )
+
+
+def email_recuperacao_senha(usuario, link_url: str) -> bool:
+    """E-mail com o link seguro (15 min) para redefinição de senha."""
+    return enviar_email(
+        usuario.email,
+        "🔐 Redefinição de senha — NEXO",
+        "recuperacao_senha.html",
+        usuario=usuario, link_url=link_url,
+    )

@@ -133,6 +133,23 @@ def create_app(config_name: str = None) -> Flask:
         elif "_user_id" in session:
             session.clear()
 
+    @app.before_request
+    def _guard_primeiro_acesso():
+        """
+        Força a troca de senha no primeiro acesso: um CLIENTE logado com
+        primeiro_acesso=True é interceptado e mandado para /auth/primeiro-acesso,
+        bloqueando dashboard, suporte, upload etc. até definir a nova senha.
+        Libera apenas: assets estáticos, a própria rota de troca e o logout.
+        """
+        if request.endpoint in ("static", "auth.primeiro_acesso", "auth.logout"):
+            return
+        if (
+            current_user.is_authenticated
+            and current_user.is_cliente
+            and getattr(current_user, "primeiro_acesso", False)
+        ):
+            return redirect(url_for("auth.primeiro_acesso"))
+
     # Registra blueprints
     from blueprints.auth import auth_bp
     from blueprints.admin import admin_bp

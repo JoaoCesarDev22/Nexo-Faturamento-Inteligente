@@ -1,0 +1,71 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Nova senha — NEXO{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <div class="auth-brand">
+        <div class="auth-logo"><img src="{{ url_for('static', filename='img/nexo-logo.jpeg') }}" alt="Logo NEXO"></div>
+        <p class="auth-eyebrow">NEXO <span>Faturamento Inteligente</span></p>
+        <div>
+            <h1 class="auth-title">Criar nova senha</h1>
+            <p class="auth-sub">Token validado. Defina sua nova senha de acesso.</p>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('auth.resetar_senha', token=token) }}">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="auth-flash-stack" aria-live="polite">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="mb-3">
+            <label for="nova_senha" class="nexo-label">Nova senha</label>
+            <div class="password-field">
+                <input type="password" name="nova_senha" id="nova_senha" class="form-control"
+                       placeholder="Mínimo de 8 caracteres" minlength="8" required autofocus autocomplete="new-password">
+                <button type="button" class="password-toggle" data-toggle-pw="nova_senha" aria-label="Mostrar senha" title="Mostrar senha">
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <div class="mb-4">
+            <label for="confirma_senha" class="nexo-label">Confirme a nova senha</label>
+            <div class="password-field">
+                <input type="password" name="confirma_senha" id="confirma_senha" class="form-control"
+                       placeholder="Repita a senha" minlength="8" required autocomplete="new-password">
+                <button type="button" class="password-toggle" data-toggle-pw="confirma_senha" aria-label="Mostrar senha" title="Mostrar senha">
+                    <i class="bi bi-eye" aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+        <button type="submit" class="btn-nexo auth-submit w-100 justify-content-center">
+            Redefinir senha <i class="bi bi-shield-check"></i>
+        </button>
+    </form>
+
+    <p class="auth-aside text-center mt-4 mb-0" style="font-size:0.9rem;color:var(--text-muted);">
+        <a href="{{ url_for('auth.login') }}" style="color:#c4a0fb;font-weight:600;text-decoration:none;"><i class="bi bi-arrow-left"></i> Voltar ao login</a>
+    </p>
+</div>
+<p class="auth-tagline">Nexo: segurança em primeiro lugar.</p>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.querySelectorAll('[data-toggle-pw]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var inp = document.getElementById(btn.getAttribute('data-toggle-pw'));
+      var ic = btn.querySelector('i');
+      if (!inp) return;
+      var mostrar = inp.type === 'password';
+      inp.type = mostrar ? 'text' : 'password';
+      if (ic) ic.className = mostrar ? 'bi bi-eye-slash' : 'bi bi-eye';
+    });
+  });
+</script>
+{% endblock %}
