@@ -317,6 +317,12 @@ class RelatorioAnalise(db.Model):
     conclusao_estrategica: Mapped[str] = mapped_column(Text, nullable=False)
     publicado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     data_publicacao: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    # True quando resumo/conclusão foram gerados pelo motor de IA (Claude).
+    # Usado para exibir, com honestidade, o selo "Gerado por IA Nexo" ao cliente.
+    # server_default garante a migração segura sobre linhas já existentes.
+    gerado_por_ia: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     analise = relationship("Analise", back_populates="relatorio")
 

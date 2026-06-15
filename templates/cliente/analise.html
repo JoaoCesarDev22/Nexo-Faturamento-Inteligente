@@ -73,24 +73,37 @@
 </div>
 
 {% if analise.curva_abc %}
+{% set cont = {'A': 0, 'B': 0, 'C': 0} %}
+{% for p in analise.curva_abc %}{% if cont.update({p.classe_abc: cont[p.classe_abc] + 1}) %}{% endif %}{% endfor %}
 <div class="nexo-card-head px-0" style="border:none;">
-    <div><h2><i class="bi bi-bezier2 text-purple"></i> Classificação ABC dos produtos</h2></div>
+    <div><h2><i class="bi bi-bezier2 text-purple"></i> Classificação ABC dos produtos</h2><p class="sub">Filtre por classe para ver os produtos estratégicos, táticos ou operacionais</p></div>
 </div>
+
+{# ---- Pílulas de filtro dinâmico (sem reload) ---- #}
+<div class="abc-filter" id="abcFilter" role="tablist">
+    <button type="button" class="abc-pill is-active" data-abc-filter="ALL">Todos <span class="abc-pill-count">{{ analise.curva_abc|length }}</span></button>
+    <button type="button" class="abc-pill" data-abc-filter="A"><span class="abc-dot abc-a"></span>Classe A <span class="abc-pill-count">{{ cont['A'] }}</span></button>
+    <button type="button" class="abc-pill" data-abc-filter="B"><span class="abc-dot abc-b"></span>Classe B <span class="abc-pill-count">{{ cont['B'] }}</span></button>
+    <button type="button" class="abc-pill" data-abc-filter="C"><span class="abc-dot abc-c"></span>Classe C <span class="abc-pill-count">{{ cont['C'] }}</span></button>
+</div>
+
 <div class="table-wrap mb-3">
     <div class="table-responsive-x">
-        <table class="nexo-table">
-            <thead><tr><th>#</th><th>Produto</th><th>Classe</th><th class="text-end">Faturamento</th><th class="text-end">% individual</th><th class="text-end">% acumulado</th></tr></thead>
+        <table class="nexo-table" id="abcTable">
+            <thead><tr><th>#</th><th>Produto</th><th>Classe</th><th class="text-end">Qtde vendida</th><th class="text-end">Faturamento</th><th class="text-end">% individual</th><th class="text-end">% acumulado</th></tr></thead>
             <tbody>
-                {% for p in analise.curva_abc[:10] %}
-                <tr>
+                {% for p in analise.curva_abc %}
+                <tr data-classe="{{ p.classe_abc }}">
                     <td class="t-mono t-mut">{{ p.posicao_ranking }}</td>
                     <td>{{ p.produto_nome }}</td>
                     <td>{{ m.badge_abc(p.classe_abc) }}</td>
+                    <td class="text-end t-mono">{% if p.quantidade is not none %}{{ m.num(p.quantidade) }}{% else %}—{% endif %}</td>
                     <td class="text-end t-mono">R$ {{ m.brl(p.faturamento) }}</td>
                     <td class="text-end t-mono t-mut">{{ '%.1f'|format(p.percentual_individual|float) }}%</td>
                     <td class="text-end t-mono t-mut">{{ '%.1f'|format(p.percentual_acumulado|float) }}%</td>
                 </tr>
                 {% endfor %}
+                <tr id="abcEmptyRow" style="display:none;"><td colspan="7" class="text-center t-mut" style="padding:22px;">Nenhum produto nesta classe.</td></tr>
             </tbody>
         </table>
     </div>
@@ -119,9 +132,12 @@
 
 {# ===================== Seção 3 — Devolutiva do consultor ===================== #}
 <div class="nexo-card-head px-0" style="border:none;">
-    <div><h2><i class="bi bi-file-earmark-text text-purple"></i> Devolutiva do consultor</h2></div>
+    <div><h2><i class="bi bi-file-earmark-text text-purple"></i> Devolutiva estratégica</h2></div>
 </div>
-<div class="nexo-card">
+<div class="nexo-card {{ 'ia-doc' if (rel and rel.gerado_por_ia) }}">
+    {% if rel and rel.gerado_por_ia %}
+    <div class="ia-banner"><i class="bi bi-robot"></i> Gerado por <strong>Inteligência Artificial Nexo</strong> · síntese automática dos indicadores e da Curva ABC</div>
+    {% endif %}
     <div class="nexo-card-body relatorio-doc">
         {% if rel.resumo_executivo %}
         <div class="relatorio-block">
@@ -156,4 +172,32 @@
 </script>
 {% endif %}
 {% endif %}
+
+{# ---- Filtro dinâmico da Curva ABC (client-side, sem reload) ---- #}
+<script>
+  (function () {
+    var filtro = document.getElementById('abcFilter');
+    var tabela = document.getElementById('abcTable');
+    if (!filtro || !tabela) return;
+    var linhas = Array.prototype.slice.call(tabela.querySelectorAll('tbody tr[data-classe]'));
+    var vazio = document.getElementById('abcEmptyRow');
+
+    filtro.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-abc-filter]');
+      if (!btn) return;
+      var alvo = btn.getAttribute('data-abc-filter');
+
+      filtro.querySelectorAll('.abc-pill').forEach(function (p) { p.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+
+      var visiveis = 0;
+      linhas.forEach(function (tr) {
+        var mostra = (alvo === 'ALL') || (tr.getAttribute('data-classe') === alvo);
+        tr.style.display = mostra ? '' : 'none';
+        if (mostra) visiveis++;
+      });
+      if (vazio) vazio.style.display = visiveis ? 'none' : '';
+    });
+  })();
+</script>
 {% endblock %}
