@@ -496,21 +496,25 @@ def _classificar_curva_abc(grupo: pd.DataFrame) -> dict:
     if base.empty or total <= 0:
         return {"produtos": [], "resumo": []}
 
-    acumulado = 0.0
+    # Percentual individual e ACUMULADO calculados VETORIALMENTE no pandas:
+    # cumsum sobre o ranking decrescente de faturamento = curva de Pareto.
+    base["perc_ind"] = base["fat"] / total * 100.0
+    base["perc_acum"] = base["perc_ind"].cumsum().clip(upper=100.0)
+
     produtos = []
     contagem = {"A": 0, "B": 0, "C": 0}
     fat_classe = {"A": 0.0, "B": 0.0, "C": 0.0}
 
     for i, row in base.iterrows():
-        fat = float(row["fat"])
-        perc_ind = fat / total * 100.0
-        acumulado += perc_ind
-        if i == 0 or acumulado <= ABC_LIMITE_A:
+        acum = float(row["perc_acum"])
+        # Líder sempre Classe A; demais por faixa de acumulado (80% / 95%).
+        if i == 0 or acum <= ABC_LIMITE_A:
             classe = "A"
-        elif acumulado <= ABC_LIMITE_B:
+        elif acum <= ABC_LIMITE_B:
             classe = "B"
         else:
             classe = "C"
+        fat = float(row["fat"])
         contagem[classe] += 1
         fat_classe[classe] += fat
         if i < TOP_N_CURVA_ABC:
@@ -519,8 +523,8 @@ def _classificar_curva_abc(grupo: pd.DataFrame) -> dict:
                 "nome": str(row["nome"]),
                 "faturamento": fat,
                 "quantidade": float(row["qtde"]) if "qtde" in base.columns else None,
-                "perc_individual": round(perc_ind, 2),
-                "perc_acumulado": round(min(acumulado, 100.0), 2),
+                "perc_individual": round(float(row["perc_ind"]), 2),
+                "perc_acumulado": round(acum, 2),
                 "classe": classe,
             })
 

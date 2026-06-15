@@ -124,7 +124,7 @@
 <div class="row g-3 mb-4">
     <div class="col-12 col-lg-7">
         <div class="nexo-card h-100">
-            <div class="nexo-card-head"><div><h2>Curva ABC · Top 5 produtos</h2><p class="sub">Classificação por faturamento (Princípio de Pareto)</p></div></div>
+            <div class="nexo-card-head"><div><h2>Gráfico de Pareto · Curva ABC</h2><p class="sub">Faturamento por produto + % acumulado (Top 10)</p></div></div>
             <div class="nexo-card-body">
                 {% if dashboard_data.curva_abc %}<div id="chartAbcCliente" class="chart-box sm"></div>
                 <div class="mt-2">{{ m.nota_abc() }}</div>
@@ -343,9 +343,9 @@
     }
   })();
 
-  /* ---- Gráfico 3 — Curva ABC (barras horizontais coloridas por classe) ---- */
+  /* ---- Gráfico 3 — Pareto da Curva ABC (barras + linha de % acumulado) ---- */
   if (dashboardData.curva_abc) {
-    NEXO.plotAbcBar('chartAbcCliente', dashboardData.curva_abc);
+    NEXO.plotParetoAbc('chartAbcCliente', dashboardData.curva_abc);
   }
 
   /* ---- Gráfico 4 — Histórico comparativo Vendas x Compras (linha) ---- */

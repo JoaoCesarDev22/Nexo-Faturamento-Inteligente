@@ -59,7 +59,7 @@
     </div>
     <div class="col-12 col-lg-7">
         <div class="nexo-card h-100">
-            <div class="nexo-card-head"><div><h2>Curva ABC · Top 5 produtos</h2><p class="sub">Classificação por faturamento (Pareto)</p></div></div>
+            <div class="nexo-card-head"><div><h2>Gráfico de Pareto · Curva ABC</h2><p class="sub">Faturamento por produto + % acumulado (Top 10)</p></div></div>
             <div class="nexo-card-body">
                 {% if abc_chart %}<div id="chartAbcAnalise" class="chart-box sm"></div>{% else %}
                 <p class="text-muted-2 mb-0" style="font-size:0.9rem;">Curva ABC não disponível para esta análise.</p>{% endif %}
@@ -148,7 +148,7 @@
 {% if abc_chart %}
 <script>
   window.NEXO_ABC = {{ abc_chart|tojson }};
-  NEXO.plotAbcBar('chartAbcAnalise', window.NEXO_ABC);
+  NEXO.plotParetoAbc('chartAbcAnalise', window.NEXO_ABC);
 </script>
 {% endif %}
 {% endif %}

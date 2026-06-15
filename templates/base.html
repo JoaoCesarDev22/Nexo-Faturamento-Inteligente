@@ -255,29 +255,59 @@
       /* Cores oficiais da Curva ABC (consistentes com os badges do CSS). */
       NEXO.abcColor = { A: '#22c55e', B: '#f59e0b', C: '#9aa0b7' };
 
-      /* ---- Gráfico de barras HORIZONTAIS da Curva ABC (Top-N) ----
-         data = { labels:[...], values:[...], classes:['A','B',...] }
-         Barras coloridas pela Classe ABC; rank 1 no topo. */
-      NEXO.plotAbcBar = function (id, data) {
+      /* ---- GRÁFICO DE PARETO da Curva ABC (combo barras + linha) ----
+         data = { labels:[...], values:[...], classes:[...], acumulado:[...] }
+         - Barras verticais (eixo Y esquerdo): faturamento absoluto por produto,
+           em roxo da identidade NEXO (look premium / Pareto clássico).
+         - Linha + marcadores (eixo Y2 direito, 0–100%): % acumulado de
+           faturamento (calculado no back-end via pandas cumsum).
+         - Tooltip unificado por produto: faturamento (+ Classe ABC) e % acum. */
+      NEXO.plotParetoAbc = function (id, data) {
         if (!data || !data.labels || !data.labels.length) return;
-        /* Plotly empilha o 1º item embaixo: invertendo, o líder fica no topo. */
-        var labels = data.labels.slice().reverse();
-        var values = data.values.slice().reverse();
-        var classes = (data.classes || []).slice().reverse();
-        var cores = classes.map(function (c) { return NEXO.abcColor[c] || '#9aa0b7'; });
-        NEXO.plot(id, [{
-          type: 'bar', orientation: 'h',
-          x: values, y: labels,
-          marker: { color: cores, line: { color: 'rgba(255,255,255,0.08)', width: 1 } },
-          customdata: classes,
-          hovertemplate: '<b>%{y}</b><br>R$ %{x:,.2f}<br>Classe %{customdata}<extra></extra>',
-          text: classes.map(function (c) { return 'Classe ' + c; }),
-          textposition: 'auto',
-          textfont: { color: '#0c0c14', size: 11, family: 'Inter, sans-serif' }
-        }], {
-          xaxis: { tickprefix: 'R$ ', tickformat: ',.0f', fixedrange: true, rangemode: 'tozero' },
-          yaxis: { fixedrange: true, automargin: true, tickfont: { size: 12 } },
-          height: 260, margin: { l: 8, r: 18, t: 14, b: 36 }, bargap: 0.35
+        var labels = data.labels;                 /* já em ordem de ranking (desc) */
+        var values = data.values;
+        var classes = data.classes || [];
+        var acum = data.acumulado || [];
+        NEXO.plot(id, [
+          {
+            type: 'bar', name: 'Faturamento',
+            x: labels, y: values, yaxis: 'y',
+            marker: {
+              color: '#7c3aed',
+              line: { color: 'rgba(168, 85, 247, 0.55)', width: 1 }
+            },
+            width: 0.62,
+            customdata: classes,
+            hovertemplate: 'Faturamento: <b>R$ %{y:,.2f}</b>  ·  Classe %{customdata}<extra></extra>'
+          },
+          {
+            type: 'scatter', mode: 'lines+markers', name: '% acumulado',
+            x: labels, y: acum, yaxis: 'y2',
+            line: { color: '#fbbf24', width: 3, shape: 'spline' },
+            marker: { color: '#fbbf24', size: 7, line: { color: '#0c0c14', width: 1 } },
+            hovertemplate: '% acumulado: <b>%{y:.1f}%</b><extra></extra>'
+          }
+        ], {
+          height: 300,
+          margin: { l: 66, r: 58, t: 28, b: 104 },
+          hovermode: 'x unified',
+          showlegend: true,
+          legend: { orientation: 'h', y: 1.16, x: 0, font: { size: 11 }, bgcolor: 'rgba(0,0,0,0)' },
+          bargap: 0.35,
+          xaxis: {
+            gridcolor: NEXO.colors.grid, zerolinecolor: NEXO.colors.grid,
+            tickangle: -38, automargin: true, tickfont: { size: 10 }, fixedrange: true
+          },
+          yaxis: {
+            title: { text: 'Faturamento', font: { size: 11, color: NEXO.colors.text } },
+            gridcolor: NEXO.colors.grid, zerolinecolor: NEXO.colors.grid,
+            tickprefix: 'R$ ', tickformat: ',.0f', rangemode: 'tozero', fixedrange: true
+          },
+          yaxis2: {
+            title: { text: '% acumulado', font: { size: 11, color: '#fbbf24' } },
+            overlaying: 'y', side: 'right', range: [0, 100], ticksuffix: '%',
+            showgrid: false, zeroline: false, fixedrange: true, tickfont: { color: '#fbbf24' }
+          }
         });
       };
 
