@@ -69,11 +69,16 @@ def cliente_required(f):
 # =====================================================================
 # Helpers de montagem dos dados de gráfico (Plotly)
 # =====================================================================
-def _abc_chart(analise) -> dict | None:
-    """Top-5 produtos da Curva ABC para o gráfico de barras horizontais."""
+def _abc_chart(analise, limite: int = 10) -> dict | None:
+    """
+    Dados do Gráfico de Pareto da Curva ABC (Top-N por faturamento):
+    barras (faturamento absoluto) + linha de % acumulado. O percentual
+    acumulado é o do total geral (calculado no ETL via pandas cumsum),
+    então a linha reflete a concentração real da receita.
+    """
     if not analise or not analise.curva_abc:
         return None
-    top = analise.curva_abc[:5]  # já ordenado por posicao_ranking no relationship
+    top = analise.curva_abc[:limite]  # já ordenado por posicao_ranking no relationship
     return {
         "labels": [p.produto_nome for p in top],
         "values": [float(p.faturamento or 0) for p in top],

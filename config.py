@@ -105,6 +105,10 @@ class Config:
         "MAIL_DEFAULT_SENDER",
         os.environ.get("MAIL_USERNAME") or "nexofaturamentointeligente@gmail.com",
     )
+    # SEGURANÇA: por padrão o Flask-Mail herda app.debug e, em modo debug, o
+    # smtplib imprime toda a conversa SMTP no log — inclusive a linha AUTH em
+    # base64, que contém a senha. Forçamos OFF para a credencial nunca vazar.
+    MAIL_DEBUG = False
     # Quando não há credenciais, o envio é suprimido pela camada emails.py
     # (sem quebrar fluxos). Flag derivada para checagem rápida nos gatilhos.
     MAIL_ATIVO = bool(MAIL_USERNAME and MAIL_PASSWORD)
