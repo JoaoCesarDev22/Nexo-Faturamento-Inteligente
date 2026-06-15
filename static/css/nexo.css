@@ -128,11 +128,14 @@ a { text-decoration: none; }
 .auth-card {
   width: 100%;
   max-width: 420px;
-  background: linear-gradient(180deg, var(--surface-2), var(--surface));
-  border: 1px solid var(--border);
+  /* Glassmorphism: fundo translúcido + desfoque (consistente com sininho/KPIs). */
+  background: rgba(19, 19, 29, 0.62);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 22px;
   padding: 40px 36px;
-  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(168, 85, 247, 0.06);
+  box-shadow: var(--shadow-lg), 0 0 0 1px rgba(168, 85, 247, 0.08);
   position: relative;
   overflow: hidden;
 }

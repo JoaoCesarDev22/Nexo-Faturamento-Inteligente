@@ -127,6 +127,12 @@ class Usuario(db.Model, UserMixin):
     senha_hash: Mapped[str] = mapped_column(String, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Primeiro acesso: novos clientes (criados via ORM) nascem com True e são
+    # obrigados a trocar a senha temporária no 1º login. server_default="false"
+    # garante que usuários JÁ existentes não sejam disruptados pela migração.
+    primeiro_acesso: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="false"
+    )
     ultimo_acesso: Mapped[Optional[datetime]] = mapped_column(DateTime)
     data_criacao: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.current_timestamp()

@@ -1,0 +1,41 @@
+{% extends "auth/_layout.html" %}
+{% block title %}Recuperar senha — NEXO{% endblock %}
+
+{% block content %}
+<div class="auth-card">
+    <div class="auth-brand">
+        <div class="auth-logo"><img src="{{ url_for('static', filename='img/nexo-logo.jpeg') }}" alt="Logo NEXO"></div>
+        <p class="auth-eyebrow">NEXO <span>Faturamento Inteligente</span></p>
+        <div>
+            <h1 class="auth-title">Recuperar senha</h1>
+            <p class="auth-sub">Informe seu e-mail e enviaremos um link seguro de redefinição.</p>
+        </div>
+    </div>
+
+    <form method="POST" action="{{ url_for('auth.recuperar_senha') }}">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="auth-flash-stack" aria-live="polite">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ 'danger' if category == 'error' else category }}" role="alert" style="word-break:break-word;">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        {% endwith %}
+
+        <div class="mb-4">
+            <label for="email" class="nexo-label">E-mail</label>
+            <input type="email" name="email" id="email" class="form-control"
+                   placeholder="voce@empresa.com.br" required autofocus autocomplete="username">
+        </div>
+        <button type="submit" class="btn-nexo auth-submit w-100 justify-content-center">
+            <i class="bi bi-envelope"></i> Enviar link de redefinição
+        </button>
+    </form>
+
+    <p class="auth-aside text-center mt-4 mb-0" style="font-size:0.9rem;color:var(--text-muted);">
+        <a href="{{ url_for('auth.login') }}" style="color:#c4a0fb;font-weight:600;text-decoration:none;"><i class="bi bi-arrow-left"></i> Voltar ao login</a>
+    </p>
+</div>
+<p class="auth-tagline">Link válido por 15 minutos, por segurança.</p>
+{% endblock %}
