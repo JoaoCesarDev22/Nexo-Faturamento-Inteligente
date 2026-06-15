@@ -475,6 +475,55 @@ def carregar_compras(caminho: str):
 
 
 # =====================================================================
+# 6a) Detecção do PERÍODO DA BASE (auditoria de origem dos dados)
+# =====================================================================
+# Relatórios de PDV trazem o período no cabeçalho textual (ex.:
+# "Período de : 01/01/26 á 31/03/26"). Extraímos isso via pandas para exibir
+# no dashboard COM QUE BASE/PERÍODO os dados foram gerados — sem digitar à mão.
+_RE_DATA_BR = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{2,4})")
+
+
+def _parse_data_br(grupos) -> "datetime.date | None":
+    d, m, y = (int(x) for x in grupos)
+    if y < 100:
+        y += 2000  # ano de 2 dígitos: 26 -> 2026
+    try:
+        return datetime(y, m, d).date()
+    except ValueError:
+        return None
+
+
+def _extrair_periodo_base(df_bruto: pd.DataFrame, janela: int = 30):
+    """
+    Varre as primeiras linhas procurando um cabeçalho de 'período' e extrai as
+    duas datas (início, fim). Retorna (date, date) ou None se não encontrar.
+    """
+    limite = min(janela, len(df_bruto))
+    for i in range(limite):
+        for cell in df_bruto.iloc[i].tolist():
+            if cell is None:
+                continue
+            txt = _strip_acentos(str(cell)).lower()
+            if "periodo" not in txt:
+                continue
+            datas = [d for d in (_parse_data_br(g) for g in _RE_DATA_BR.findall(str(cell))) if d]
+            if len(datas) >= 2:
+                ini, fim = datas[0], datas[1]
+                return (ini, fim) if ini <= fim else (fim, ini)
+            if len(datas) == 1:
+                return datas[0], datas[0]
+    return None
+
+
+def _detectar_periodo_arquivo(caminho: str):
+    """Lê o cru do arquivo e tenta extrair o período do cabeçalho. Falha → None."""
+    try:
+        return _extrair_periodo_base(_ler_bruto(caminho))
+    except ETLValidationError:
+        return None
+
+
+# =====================================================================
 # 6b) Curva ABC (Princípio de Pareto) sobre o faturamento por produto
 # =====================================================================
 def _classificar_curva_abc(grupo: pd.DataFrame) -> dict:
@@ -585,6 +634,11 @@ def calcular_kpis_em_memoria(caminho_vendas: str, caminho_compras: str) -> Resul
     # ---- Curva ABC (Princípio de Pareto) sobre o faturamento por produto ----
     curva_abc = _classificar_curva_abc(grupo)
 
+    # ---- Período da base (cabeçalho do relatório): vendas tem prioridade ----
+    periodo_base = _detectar_periodo_arquivo(caminho_vendas) or _detectar_periodo_arquivo(caminho_compras)
+    periodo_base_inicio = periodo_base[0] if periodo_base else None
+    periodo_base_fim = periodo_base[1] if periodo_base else None
+
     # ---- COMPRAS: total (nível NF) ----
     total_comprado = float(df_c[col_valor_c].sum())
 
@@ -673,6 +727,9 @@ def calcular_kpis_em_memoria(caminho_vendas: str, caminho_compras: str) -> Resul
         # Curva ABC: NÃO é um único KPI escalar; é o ranking + resumo por classe.
         # Persistido em produto_curva_abc (1:N), não em indicador_analise.
         "curva_abc": curva_abc,
+        # Período real coberto pela base (lido do cabeçalho do relatório).
+        "periodo_base_inicio": periodo_base_inicio,
+        "periodo_base_fim": periodo_base_fim,
     }
     return ResultadoETL(
         sucesso=True,
@@ -706,6 +763,8 @@ def _persistir_indicadores(db_session, id_analise: int, kpis: dict) -> None:
     indicador.produto_maior_faturamento_valor = kpis["produto_maior_faturamento_valor"]
     indicador.produto_maior_saldo_parado_nome = kpis["produto_maior_saldo_parado_nome"]
     indicador.saldo_estimado_parado = kpis["saldo_estimado_parado"]
+    indicador.periodo_base_inicio = kpis.get("periodo_base_inicio")
+    indicador.periodo_base_fim = kpis.get("periodo_base_fim")
     indicador.data_geracao = datetime.utcnow()
 
 

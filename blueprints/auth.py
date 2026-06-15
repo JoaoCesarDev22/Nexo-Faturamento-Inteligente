@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from sqlalchemy import select
 
@@ -35,9 +35,12 @@ def login():
                 flash("Esta conta está desativada. Contacte o administrador.", "danger")
                 return render_template("auth/login.html")
 
-            # Efetua o login na sessão
-            login_user(usuario)
-            
+            # Efetua o login na sessão (sem "remember": cookie morre ao fechar o
+            # navegador). Carimba a sessão com o BOOT_ID atual para que um
+            # restart do servidor invalide o login automaticamente.
+            login_user(usuario, remember=False)
+            session["boot_id"] = current_app.config["BOOT_ID"]
+
             # Trata o redirecionamento caso o utilizador tenha tentado aceder a uma página protegida antes
             next_page = request.args.get("next")
             if next_page and next_page.startswith("/"):

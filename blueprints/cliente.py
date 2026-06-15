@@ -110,6 +110,29 @@ def _historico_temporal(empresa) -> dict | None:
     }
 
 
+def _auditoria(analise) -> dict | None:
+    """
+    Metadados de origem dos dados de UMA análise: empresa, arquivos importados
+    e período (lido do cabeçalho do relatório via pandas, persistido em
+    indicador_analise; fallback no período declarado da análise).
+    Usado tanto no dashboard quanto na tela de análise individual.
+    """
+    if not analise:
+        return None
+    emp = analise.empresa
+    arquivos = {u.tipo_relatorio: u.nome_arquivo_original for u in analise.uploads}
+    ind = analise.indicador
+    derivado = bool(ind and ind.periodo_base_inicio)
+    return {
+        "empresa": (emp.nome_fantasia or emp.razao_social) if emp else "—",
+        "arquivo_vendas": arquivos.get("VENDAS"),
+        "arquivo_compras": arquivos.get("COMPRAS"),
+        "periodo_inicio": (ind.periodo_base_inicio if derivado else analise.periodo_inicio),
+        "periodo_fim": (ind.periodo_base_fim if derivado else analise.periodo_fim),
+        "periodo_derivado": derivado,
+    }
+
+
 @cliente_bp.route("/dashboard")
 @cliente_required
 def dashboard():
@@ -156,6 +179,9 @@ def dashboard():
         }
         semaforos = gerar_semaforos(ind, analise.curva_abc)
 
+    # Auditoria de origem dos dados (COM QUE BASE/ARQUIVO/PERÍODO foi gerado).
+    auditoria = _auditoria(analise)
+
     return render_template(
         "cliente/dashboard.html",
         empresa=empresa,
@@ -164,6 +190,7 @@ def dashboard():
         analises_em_andamento=analises_em_andamento,
         dashboard_data=dashboard_data,
         semaforos=semaforos,
+        auditoria=auditoria,
     )
 
 
@@ -214,6 +241,7 @@ def analise(id_analise):
         analise=analise,
         semaforos=semaforos,
         abc_chart=abc_chart,
+        auditoria=_auditoria(analise),
     )
 
 

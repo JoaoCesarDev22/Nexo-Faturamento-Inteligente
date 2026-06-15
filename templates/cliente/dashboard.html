@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% import "_macros.html" as m %}
+{% import "_auditoria.html" as audit %}
 
 {% block title %}Visão Geral — NEXO{% endblock %}
 {% block page_title %}Visão Geral{% endblock %}
@@ -13,6 +14,9 @@
         <p class="sub">{% if empresa %}{{ empresa.nome_fantasia or empresa.razao_social }}{% else %}Painel do cliente NEXO{% endif %}</p>
     </div>
 </div>
+
+{# ---------------- Barra de auditoria: origem dos dados ---------------- #}
+{{ audit.barra(auditoria) }}
 
 {% if suspensa %}
 <div class="banner-suspensa">
