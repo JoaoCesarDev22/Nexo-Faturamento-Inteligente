@@ -21,6 +21,22 @@
     </div>
 </div>
 
+{# ---------------- Geração automatizada por IA ---------------- #}
+<div class="nexo-card mb-4" style="border-color:rgba(168,85,247,0.32);">
+    <div class="nexo-card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div>
+            <h2 style="font-size:1.02rem;margin:0 0 4px;"><i class="bi bi-robot text-purple"></i> Gerar devolutiva por Inteligência Artificial</h2>
+            <p class="sub mb-0" style="color:var(--text-muted);font-size:0.88rem;">A IA Nexo redige o <strong>Resumo Executivo</strong> e a <strong>Conclusão Estratégica</strong> a partir dos indicadores e da Curva ABC — sem digitação manual. Você revisa e publica.</p>
+            {% if rel and rel.gerado_por_ia %}<span class="nexo-badge b-purple mt-2"><i class="bi bi-robot"></i> Conteúdo atual gerado por IA</span>{% endif %}
+        </div>
+        <form method="POST" action="{{ url_for('admin.analise_relatorio', id_analise=analise.id_analise) }}">
+            <button type="submit" name="acao" value="gerar_ia" class="btn-nexo" {{ '' if analise.indicador else 'disabled' }}>
+                <i class="bi bi-stars"></i> Gerar com IA
+            </button>
+        </form>
+    </div>
+</div>
+
 <form method="POST" action="{{ url_for('admin.analise_relatorio', id_analise=analise.id_analise) }}" class="relatorio-doc">
     <div class="nexo-card mb-4">
         <div class="nexo-card-body">
@@ -49,7 +65,7 @@
             <div class="mt-3">
                 <label class="nexo-label" for="conclusao_estrategica"><i class="bi bi-flag text-purple"></i> Conclusão estratégica <span class="req">*</span></label>
                 <textarea class="form-control" id="conclusao_estrategica" name="conclusao_estrategica" rows="4" placeholder="A mensagem central entregue ao cliente (obrigatória)…" required>{{ rel.conclusao_estrategica if (rel and rel.conclusao_estrategica) else '' }}</textarea>
-                <p class="field-hint mt-2 mb-0">Para <strong>publicar</strong>, preencha também resumo, pontos positivos, pontos de alerta e recomendações.</p>
+                <p class="field-hint mt-2 mb-0">Para <strong>publicar</strong> basta Resumo Executivo + Conclusão (o que o cliente vê). Os demais campos são apoio interno — os alertas viram semáforos automáticos no painel do cliente.</p>
             </div>
         </div>
     </div>

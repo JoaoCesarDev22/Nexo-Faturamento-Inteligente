@@ -127,6 +127,11 @@ class Config:
     # dependência (xlrd) nem caminho de leitura — não anunciamos o que não lemos.
     ALLOWED_EXTENSIONS = {"csv", "xlsx"}
 
+    # === IA (Claude / Anthropic) — geração automatizada da devolutiva ===
+    # Sem a chave, o motor cai no fallback determinístico local (não quebra).
+    ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY") or None
+    ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8")
+
 
 class DevelopmentConfig(Config):
     DEBUG = True

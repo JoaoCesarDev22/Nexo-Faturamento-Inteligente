@@ -524,6 +524,37 @@ def analise_relatorio(id_analise):
     if request.method == "POST":
         form = request.form
         acao = form.get("acao", "").strip().lower()
+
+        # --- Geração automatizada por IA (sem digitação manual) ---
+        # Preenche resumo_executivo + conclusao_estrategica a partir dos números.
+        # Não depende dos campos do form e não publica — o admin revisa e publica.
+        if acao == "gerar_ia":
+            if not analise.indicador:
+                flash("Gere os indicadores (Processar) antes de gerar a devolutiva por IA.", "warning")
+                return redirect(url_for("admin.analise_relatorio", id_analise=id_analise))
+            from ai_devolutiva import gerar_devolutiva_ia
+            ref = f"{analise.mes_referencia:02d}/{analise.ano_referencia}"
+            rel = analise.relatorio
+            if rel is None:
+                rel = RelatorioAnalise(
+                    id_analise=id_analise, titulo=f"Análise {ref}",
+                    conclusao_estrategica="(gerando...)",
+                )
+                db.session.add(rel)
+            gerado = gerar_devolutiva_ia(analise)
+            rel.resumo_executivo = gerado["resumo_executivo"]
+            rel.conclusao_estrategica = gerado["conclusao_estrategica"]
+            rel.gerado_por_ia = (gerado["fonte"] == "ia")
+            if not rel.titulo:
+                rel.titulo = f"Análise {ref}"
+            analise.data_atualizacao = datetime.now(timezone.utc)
+            db.session.commit()
+            if gerado["fonte"] == "ia":
+                flash("Devolutiva gerada por Inteligência Artificial Nexo. Revise e publique.", "success")
+            else:
+                flash("Rascunho gerado pelo motor local (configure ANTHROPIC_API_KEY para a geração por IA completa). Revise e publique.", "warning")
+            return redirect(url_for("admin.analise_relatorio", id_analise=id_analise))
+
         if acao not in ("rascunho", "publicar", "despublicar"):
             flash("Ação inválida.", "danger")
             return redirect(url_for("admin.analise_relatorio", id_analise=id_analise))
@@ -566,11 +597,11 @@ def analise_relatorio(id_analise):
                 )
                 db.session.rollback()
                 return redirect(url_for("admin.analise_relatorio", id_analise=id_analise))
+            # O cliente vê apenas Resumo Executivo + Conclusão (os demais campos
+            # viraram semáforos automáticos). Logo, publicar exige só esses dois —
+            # ambos preenchíveis pela geração por IA, sem digitação manual.
             faltando = [n for n, v in [
                 ("resumo executivo", resumo),
-                ("pontos positivos", pontos_pos),
-                ("pontos de alerta", pontos_alerta),
-                ("recomendações", recomendacoes),
             ] if not v]
             if faltando:
                 flash(f"Para publicar é necessário preencher: {', '.join(faltando)}.", "danger")

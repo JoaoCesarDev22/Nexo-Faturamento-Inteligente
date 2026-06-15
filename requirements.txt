@@ -24,3 +24,6 @@ reportlab==4.2.5         # PDF — exportação da análise executiva (ABC + 5W2
 # Tempo real — sininho de notificações via WebSocket
 Flask-SocketIO==5.4.1    # async_mode="threading" (estável no Python 3.12)
 simple-websocket==1.1.0  # driver WebSocket para o modo threading
+
+# IA — geração automatizada da devolutiva (Claude / Anthropic)
+anthropic==0.109.1
