@@ -41,6 +41,7 @@ from models import (
 from insights import gerar_semaforos
 from notifications import notificar_admins
 from pdf_export import gerar_pdf_analise
+from suporte_bot import GUIA_TOPICOS
 
 cliente_bp = Blueprint("cliente", __name__)
 
@@ -192,6 +193,13 @@ def dashboard():
         semaforos=semaforos,
         auditoria=auditoria,
     )
+
+
+@cliente_bp.route("/guia")
+@cliente_required
+def guia():
+    """Aba Guia/Wiki: dúvidas comuns do portal em accordions (fonte: GUIA_TOPICOS)."""
+    return render_template("cliente/guia.html", topicos=GUIA_TOPICOS)
 
 
 @cliente_bp.route("/historico")

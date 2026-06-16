@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Guia — NEXO{% endblock %}
+{% block page_title %}Guia do Portal{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Guia do Portal</h1>
+        <p class="sub">Respostas rápidas para as dúvidas mais comuns sobre o uso do NEXO.</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('cliente.tickets') }}" class="btn-ghost"><i class="bi bi-life-preserver"></i> Abrir chamado</a>
+    </div>
+</div>
+
+<div class="guia-accordion accordion" id="guiaAccordion">
+    {% for t in topicos %}
+    <div class="accordion-item guia-item">
+        <h2 class="accordion-header" id="head-{{ t.id }}">
+            <button class="accordion-button {{ 'collapsed' if not loop.first }}" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#body-{{ t.id }}"
+                    aria-expanded="{{ 'true' if loop.first else 'false' }}" aria-controls="body-{{ t.id }}">
+                <span class="guia-ico"><i class="bi {{ t.icone }}"></i></span>
+                {{ t.titulo }}
+            </button>
+        </h2>
+        <div id="body-{{ t.id }}" class="accordion-collapse collapse {{ 'show' if loop.first }}"
+             aria-labelledby="head-{{ t.id }}" data-bs-parent="#guiaAccordion">
+            <div class="accordion-body">
+                <p class="guia-resumo">{{ t.resumo }}</p>
+                <ol class="guia-passos">
+                    {% for p in t.passos %}<li>{{ p }}</li>{% endfor %}
+                </ol>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="guia-cta">
+    <div>
+        <i class="bi bi-robot"></i>
+        <span>Não achou o que procurava? Fale com o <strong>NexoBot</strong> no canto inferior direito, ou abra um chamado.</span>
+    </div>
+    <a href="{{ url_for('cliente.tickets') }}" class="btn-nexo btn-sm-x"><i class="bi bi-chat-dots"></i> Abrir chamado</a>
+</div>
+{% endblock %}

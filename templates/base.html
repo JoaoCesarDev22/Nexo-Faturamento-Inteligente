@@ -72,6 +72,9 @@
             <a class="nav-item {{ 'active' if request.endpoint in ['cliente.historico', 'cliente.analise'] }}" href="{{ url_for('cliente.historico') }}">
                 <i class="bi bi-clock-history"></i> Histórico
             </a>
+            <a class="nav-item {{ 'active' if request.endpoint == 'cliente.guia' }}" href="{{ url_for('cliente.guia') }}">
+                <i class="bi bi-book"></i> Guia
+            </a>
             <a class="nav-item {{ 'active' if request.endpoint in ['cliente.tickets', 'cliente.ticket_detalhe'] }}" href="{{ url_for('cliente.tickets') }}">
                 <i class="bi bi-life-preserver"></i> Suporte
             </a>
@@ -422,6 +425,74 @@
 
           // 3) Alerta visual (toast) clicável
           showToast(n.texto, n.link);
+        });
+      })();
+    </script>
+    {% endif %}
+
+    {% if current_user.is_authenticated and current_user.is_cliente %}
+    {# ---------------- NexoBot — widget de suporte flutuante ---------------- #}
+    <div class="nexobot" id="nexobot">
+        <button class="nexobot-launcher" id="nexobotLauncher" type="button" aria-label="Abrir NexoBot — assistente do portal">
+            <i class="bi bi-robot"></i>
+        </button>
+        <div class="nexobot-panel" id="nexobotPanel" hidden>
+            <div class="nexobot-head">
+                <span class="nexobot-title"><span class="nexobot-avatar"><i class="bi bi-robot"></i></span> NexoBot <small>assistente do portal</small></span>
+                <button class="nexobot-close" id="nexobotClose" type="button" aria-label="Fechar"><i class="bi bi-x-lg"></i></button>
+            </div>
+            <div class="nexobot-msgs" id="nexobotMsgs" aria-live="polite"></div>
+            <form class="nexobot-form" id="nexobotForm">
+                <input type="text" id="nexobotInput" placeholder="Pergunte sobre o portal…" autocomplete="off" maxlength="1000">
+                <button type="submit" aria-label="Enviar"><i class="bi bi-send"></i></button>
+            </form>
+        </div>
+    </div>
+    <script>
+      (function () {
+        var launcher = document.getElementById('nexobotLauncher'),
+            panel = document.getElementById('nexobotPanel'),
+            closeBtn = document.getElementById('nexobotClose'),
+            msgs = document.getElementById('nexobotMsgs'),
+            form = document.getElementById('nexobotForm'),
+            input = document.getElementById('nexobotInput');
+        if (!launcher) return;
+        var saudou = false;
+
+        function esc(s) { var d = document.createElement('div'); d.textContent = (s == null) ? '' : String(s); return d.innerHTML; }
+        function fmt(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>'); }
+        function add(texto, who) {
+          var el = document.createElement('div');
+          el.className = 'nb-msg nb-' + who;
+          el.innerHTML = '<div class="nb-bubble">' + fmt(texto) + '</div>';
+          msgs.appendChild(el); msgs.scrollTop = msgs.scrollHeight;
+          return el;
+        }
+        function abrir() {
+          panel.hidden = false; launcher.classList.add('is-open');
+          if (!saudou) {
+            add('Olá! Sou o NexoBot 🤖. Posso ajudar com envio de relatórios, senha de acesso e exportação do seu PDV. Como posso ajudar?', 'bot');
+            saudou = true;
+          }
+          input.focus();
+        }
+        function fechar() { panel.hidden = true; launcher.classList.remove('is-open'); }
+        launcher.addEventListener('click', function () { panel.hidden ? abrir() : fechar(); });
+        closeBtn.addEventListener('click', fechar);
+
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var txt = input.value.trim();
+          if (!txt) return;
+          add(txt, 'user'); input.value = ''; input.focus();
+          var typing = add('…', 'bot'); typing.classList.add('nb-typing');
+          fetch('/api/suporte-bot', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ mensagem: txt }),
+          }).then(function (r) { return r.json(); })
+            .then(function (d) { typing.remove(); add(d.resposta || 'Desculpe, tente de novo.', 'bot'); })
+            .catch(function () { typing.remove(); add('Não consegui responder agora. Tente novamente ou abra um chamado em “Suporte”.', 'bot'); });
         });
       })();
     </script>

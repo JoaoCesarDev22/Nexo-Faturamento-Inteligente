@@ -155,11 +155,13 @@ def create_app(config_name: str = None) -> Flask:
     from blueprints.admin import admin_bp
     from blueprints.cliente import cliente_bp
     from blueprints.notificacoes import notificacoes_bp
+    from blueprints.api import api_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(admin_bp, url_prefix="/admin")
     app.register_blueprint(cliente_bp, url_prefix="/cliente")
     app.register_blueprint(notificacoes_bp)
+    app.register_blueprint(api_bp)
 
     # Context processor: injeta os dados do sininho (contagem + 5 recentes) em
     # TODA página renderizada, para o usuário autenticado. Mantém o template
