@@ -132,6 +132,11 @@ class Config:
     ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY") or None
     ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-8")
 
+    # === NexoBot (suporte) — Hugging Face Inference (gratuito, opcional) ===
+    # Sem o token, o bot usa o fallback determinístico por palavras-chave.
+    HF_API_TOKEN = os.environ.get("HF_API_TOKEN") or None
+    HF_MODEL = os.environ.get("HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.3")
+
 
 class DevelopmentConfig(Config):
     DEBUG = True
