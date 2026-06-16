@@ -44,6 +44,10 @@ uploads/*
 dados/*.xlsx
 dados/*.csv
 
+# Mídias da Base de Conhecimento (CMS)
+static/uploads/guia/*
+!static/uploads/guia/.gitkeep
+
 # === Variáveis de ambiente ===
 .env
 .env.local
