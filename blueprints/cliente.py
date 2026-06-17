@@ -23,7 +23,6 @@ import os
 import hashlib
 from datetime import datetime, timezone
 from functools import wraps
-from pathlib import Path
 
 from flask import (
     Blueprint, render_template, abort, request, redirect, url_for, flash, current_app,

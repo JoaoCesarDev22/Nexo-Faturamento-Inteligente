@@ -50,7 +50,6 @@ def gerar_semaforos(indicador, curva_abc=None) -> list[dict]:
         return []
 
     faturamento = _f(indicador.faturamento_total)
-    comprado = _f(indicador.total_comprado)
     saldo = _f(indicador.saldo_estimado_compras_vendas)  # comprado - vendido
     cards: list[dict] = []
 

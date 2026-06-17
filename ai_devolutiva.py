@@ -176,8 +176,8 @@ def _gerar_fallback(c: dict) -> dict:
            if c["abc_lider_nome"] else ".")
     )
     conclusao = (
-        f"A prioridade do próximo período é proteger o abastecimento dos produtos Classe A, "
-        f"que sustentam a maior fatia do faturamento. "
+        "A prioridade do próximo período é proteger o abastecimento dos produtos Classe A, "
+        "que sustentam a maior fatia do faturamento. "
         + ("Mantido o ritmo de compras abaixo do de vendas, os campeões tendem à ruptura — "
            "recompor o giro evita desabastecimento. " if giro else
            "Ajustar o ritmo de compras ao de vendas libera capital de giro. ")

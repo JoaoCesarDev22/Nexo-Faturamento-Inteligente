@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 
 from flask import Blueprint, redirect, url_for, request
 from flask_login import login_required, current_user
-from sqlalchemy import select, update
+from sqlalchemy import update
 
 from extensions import db
 from models import Notificacao

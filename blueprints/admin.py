@@ -13,8 +13,7 @@ from sqlalchemy import select, func
 from extensions import db
 from models import (
     Analise, UploadRelatorio, Empresa, Plano, Segmento, Usuario, RelatorioAnalise,
-    ChamadoSuporte, MensagemSuporte, GuiaTopico, IndicadorAnalise, ProdutoCurvaABC,
-    Notificacao,
+    ChamadoSuporte, MensagemSuporte, GuiaTopico, ProdutoCurvaABC, Notificacao,
 )
 from etl_processor import processar_arquivos_analise
 from notifications import notificar_clientes_empresa
@@ -899,7 +898,6 @@ def processar_analise(id_analise):
     caminho_vendas = _resolver_caminho(upload_vendas)
     caminho_compras = _resolver_caminho(upload_compras)
 
-    # CORREÇÃO DE DEPRECIAÇÃO: datetime.utcnow() foi descontinuado. Usando fuso UTC explícito.
     agora = datetime.now(timezone.utc)
     resultado = processar_arquivos_analise(caminho_vendas, caminho_compras, id_analise, db.session)
 
