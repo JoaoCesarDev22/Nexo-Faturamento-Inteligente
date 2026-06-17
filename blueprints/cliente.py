@@ -36,12 +36,11 @@ from sqlalchemy import select
 from extensions import db
 from models import (
     Analise, IndicadorAnalise, RelatorioAnalise, UploadRelatorio,
-    ChamadoSuporte, MensagemSuporte,
+    ChamadoSuporte, MensagemSuporte, GuiaTopico,
 )
 from insights import gerar_semaforos
 from notifications import notificar_admins
 from pdf_export import gerar_pdf_analise
-from suporte_bot import GUIA_TOPICOS
 
 cliente_bp = Blueprint("cliente", __name__)
 
@@ -198,8 +197,22 @@ def dashboard():
 @cliente_bp.route("/guia")
 @cliente_required
 def guia():
-    """Aba Guia/Wiki: dúvidas comuns do portal em accordions (fonte: GUIA_TOPICOS)."""
-    return render_template("cliente/guia.html", topicos=GUIA_TOPICOS)
+    """
+    Aba Guia/Wiki: dúvidas comuns lidas DINAMICAMENTE do banco (CMS), agrupadas
+    por categoria. Mantém ordem estável (categoria, id).
+    """
+    topicos = db.session.execute(
+        select(GuiaTopico)
+        .where(GuiaTopico.ativo.is_(True))
+        .order_by(GuiaTopico.categoria, GuiaTopico.id)
+    ).scalars().all()
+
+    # Agrupa por categoria preservando a ordem de aparição.
+    grupos = {}
+    for t in topicos:
+        grupos.setdefault(t.categoria, []).append(t)
+
+    return render_template("cliente/guia.html", grupos=grupos, total=len(topicos))
 
 
 @cliente_bp.route("/historico")

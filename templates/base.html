@@ -55,11 +55,17 @@
             <a class="nav-item {{ 'active' if request.endpoint in ['admin.empresas', 'admin.empresa_nova', 'admin.empresa_editar'] }}" href="{{ url_for('admin.empresas') }}">
                 <i class="bi bi-buildings"></i> Empresas
             </a>
+            <a class="nav-item {{ 'active' if request.endpoint == 'admin.lixeira' }}" href="{{ url_for('admin.lixeira') }}">
+                <i class="bi bi-trash"></i> Lixeira
+            </a>
             <a class="nav-item {{ 'active' if request.endpoint in ['admin.analises', 'admin.analise_nova', 'admin.analise_upload', 'admin.analise_relatorio', 'admin.processar_analise'] }}" href="{{ url_for('admin.analises') }}">
                 <i class="bi bi-clipboard-data"></i> Análises
             </a>
             <a class="nav-item {{ 'active' if request.endpoint in ['admin.tickets', 'admin.ticket_detalhe'] }}" href="{{ url_for('admin.tickets') }}">
                 <i class="bi bi-life-preserver"></i> Suporte
+            </a>
+            <a class="nav-item {{ 'active' if request.endpoint in ['admin.guia', 'admin.guia_novo', 'admin.guia_editar'] }}" href="{{ url_for('admin.guia') }}">
+                <i class="bi bi-journal-text"></i> Base de Conhecimento
             </a>
             {% else %}
             <span class="nav-section">Minha Empresa</span>
@@ -152,10 +158,13 @@
                     <div class="flash-stack">
                         {% for category, message in messages %}
                         {% set dismiss_auto = category in ['success', 'info'] %}
-                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} {{ 'fade show' if dismiss_auto else 'alert-dismissible fade show' }}"
+                        {% set cat = 'danger' if category == 'error' else category %}
+                        {% set icons = {'success': 'bi-check-circle-fill', 'danger': 'bi-exclamation-octagon-fill', 'warning': 'bi-exclamation-triangle-fill', 'info': 'bi-info-circle-fill'} %}
+                        <div class="alert alert-{{ cat }} d-flex align-items-start gap-2 {{ 'fade show' if dismiss_auto else 'alert-dismissible fade show' }}"
                              role="alert"
                              {% if dismiss_auto %}data-auto-dismiss-ms="4200"{% endif %}>
-                            {{ message }}
+                            <i class="bi {{ icons.get(cat, 'bi-info-circle-fill') }} flash-icon" aria-hidden="true"></i>
+                            <div class="flash-text">{{ message }}</div>
                             {% if not dismiss_auto %}
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
                             {% endif %}

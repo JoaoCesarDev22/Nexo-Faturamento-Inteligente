@@ -98,6 +98,10 @@ class Empresa(db.Model):
         DateTime, nullable=False, server_default=func.current_timestamp()
     )
     data_atualizacao: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    # Soft delete (Lixeira): NULL = ativa; preenchido = movida para a lixeira.
+    # As listagens normais filtram deletado_em IS NULL; a tela /admin/lixeira
+    # lista o complemento. A exclusão física só ocorre via "excluir-permanente".
+    deletado_em: Mapped[Optional[datetime]] = mapped_column(DateTime)
 
     # Relacionamentos
     segmento = relationship("Segmento")
@@ -473,4 +477,34 @@ class Notificacao(db.Model):
 
     __table_args__ = (
         Index("ix_notificacao_usuario", "id_usuario"),
+    )
+
+
+# =====================================================================
+# 13. GuiaTopico  (CMS — Base de Conhecimento do Guia / NexoBot)
+# =====================================================================
+class GuiaTopico(db.Model):
+    """
+    Tópico da Base de Conhecimento, gerenciável pelo ADMIN (CMS). Fonte ÚNICA
+    de verdade consumida pela aba "Guia" do cliente E pelo NexoBot (DRY).
+      - categoria: agrupador (ex.: "Upload", "Senhas", "PDV");
+      - pergunta:  título da dúvida (vira o cabeçalho do accordion);
+      - resposta:  texto livre (passo a passo, quebras de linha preservadas);
+      - imagem_url: caminho relativo em static/ (ex.: 'uploads/guia/x.png'), opcional.
+    """
+    __tablename__ = "guia_topico"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    categoria: Mapped[str] = mapped_column(String, nullable=False)
+    pergunta: Mapped[str] = mapped_column(String, nullable=False)
+    resposta: Mapped[str] = mapped_column(Text, nullable=False)
+    imagem_url: Mapped[Optional[str]] = mapped_column(String)
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    data_criacao: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+    data_atualizacao: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+    __table_args__ = (
+        Index("ix_guia_topico_categoria", "categoria"),
     )

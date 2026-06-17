@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Base de Conhecimento — NEXO Admin{% endblock %}
+{% block page_title %}Base de Conhecimento{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Base de Conhecimento</h1>
+        <p class="sub">{{ total }} solução(ões) — alimentam a aba “Guia” do cliente e o NexoBot.</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.guia_novo') }}" class="btn-nexo"><i class="bi bi-plus-lg"></i> Novo tópico</a>
+    </div>
+</div>
+
+{% if total == 0 %}
+<div class="nexo-card">
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-journal-plus"></i></div>
+        <h3>Nenhum tópico cadastrado.</h3>
+        <p>Crie o primeiro tópico para abastecer o Guia do cliente e o NexoBot.</p>
+        <a href="{{ url_for('admin.guia_novo') }}" class="btn-nexo mt-3"><i class="bi bi-plus-lg"></i> Novo tópico</a>
+    </div>
+</div>
+{% else %}
+<div class="table-wrap">
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead><tr><th>Categoria</th><th>Pergunta</th><th>Imagem</th><th>Status</th><th>Atualizado</th><th class="text-end">Ações</th></tr></thead>
+            <tbody>
+                {% for t in topicos %}
+                <tr>
+                    <td><span class="cat-badge">{{ t.categoria }}</span></td>
+                    <td class="t-strong">{{ t.pergunta }}</td>
+                    <td>{% if t.imagem_url %}<i class="bi bi-image text-purple" title="Possui imagem"></i>{% else %}<span class="t-dim">—</span>{% endif %}</td>
+                    <td>{% if t.ativo %}<span class="nexo-badge b-green"><span class="dot"></span>Ativo</span>{% else %}<span class="nexo-badge b-muted">Inativo</span>{% endif %}</td>
+                    <td class="t-mut t-mono">{{ (t.data_atualizacao or t.data_criacao).strftime('%d/%m/%Y') }}</td>
+                    <td class="text-end">
+                        <a href="{{ url_for('admin.guia_editar', id=t.id) }}" class="btn-ghost btn-sm-x"><i class="bi bi-pencil"></i> Editar</a>
+                        <form method="POST" action="{{ url_for('admin.guia_deletar', id=t.id) }}" style="display:inline;"
+                              onsubmit="return confirm('Remover este tópico da Base de Conhecimento?');">
+                            <button type="submit" class="btn-ghost is-danger btn-sm-x"><i class="bi bi-trash"></i></button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

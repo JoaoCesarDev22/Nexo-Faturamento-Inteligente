@@ -100,3 +100,17 @@ def email_recuperacao_senha(usuario, link_url: str) -> bool:
         "recuperacao_senha.html",
         usuario=usuario, link_url=link_url,
     )
+
+
+def email_boas_vindas(usuario, link_definir: str) -> bool:
+    """
+    E-mail de boas-vindas ao novo cliente, com o LINK SEGURO de definição de
+    senha (token de 15 min) — sem senha em texto. Disparado direto pelo Flask
+    após o cadastro (sem webhook externo).
+    """
+    return enviar_email(
+        usuario.email,
+        "👋 Bem-vindo(a) ao NEXO — defina sua senha de acesso",
+        "boas_vindas.html",
+        usuario=usuario, link_definir=link_definir,
+    )

@@ -1,5 +1,6 @@
 import os
 import hashlib
+import secrets
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
@@ -12,11 +13,12 @@ from sqlalchemy import select, func
 from extensions import db
 from models import (
     Analise, UploadRelatorio, Empresa, Plano, Segmento, Usuario, RelatorioAnalise,
-    ChamadoSuporte, MensagemSuporte,
+    ChamadoSuporte, MensagemSuporte, GuiaTopico, IndicadorAnalise, ProdutoCurvaABC,
+    Notificacao,
 )
 from etl_processor import processar_arquivos_analise
 from notifications import notificar_clientes_empresa
-from emails import email_analise_publicada, email_ticket_resolvido
+from emails import email_analise_publicada, email_ticket_resolvido, email_boas_vindas
 from sqlalchemy.exc import IntegrityError
 
 # Categorias de ticket (token persistido -> rótulo exibido) — espelha cliente.py.
@@ -48,6 +50,7 @@ def dashboard():
     contagem_status = dict(
         db.session.execute(
             select(Empresa.status_conta, func.count(Empresa.id_empresa))
+            .where(Empresa.deletado_em.is_(None))
             .group_by(Empresa.status_conta)
         ).all()
     )
@@ -62,6 +65,7 @@ def dashboard():
         .select_from(Empresa)
         .join(Plano, Empresa.id_plano_atual == Plano.id_plano)
         .where(Empresa.status_conta == "ATIVA")
+        .where(Empresa.deletado_em.is_(None))
     ).scalar() or 0
 
     stats = {
@@ -78,6 +82,7 @@ def dashboard():
             select(Plano.nome_plano, func.count(Empresa.id_empresa))
             .select_from(Empresa)
             .join(Plano, Empresa.id_plano_atual == Plano.id_plano)
+            .where(Empresa.deletado_em.is_(None))
             .group_by(Plano.nome_plano)
         ).all()
     )
@@ -150,11 +155,17 @@ def dashboard():
 @admin_bp.route("/empresas")
 @admin_required
 def empresas():
-    """Listagem da carteira de empresas clientes."""
+    """Listagem da carteira de empresas clientes ATIVAS (exclui a lixeira)."""
     rows = db.session.execute(
-        select(Empresa).order_by(Empresa.razao_social.asc())
+        select(Empresa)
+        .where(Empresa.deletado_em.is_(None))
+        .order_by(Empresa.razao_social.asc())
     ).scalars().all()
-    return render_template("admin/empresas.html", empresas=rows)
+    # Contagem para o badge do link "Lixeira" na própria tela.
+    na_lixeira = db.session.execute(
+        select(func.count(Empresa.id_empresa)).where(Empresa.deletado_em.is_not(None))
+    ).scalar() or 0
+    return render_template("admin/empresas.html", empresas=rows, na_lixeira=na_lixeira)
 
 
 @admin_bp.route("/analises")
@@ -167,7 +178,9 @@ def analises():
         select(Analise).order_by(Analise.data_criacao.desc(), Analise.id_analise.desc())
     ).scalars().all()
     empresas_filtro = db.session.execute(
-        select(Empresa).order_by(Empresa.razao_social.asc())
+        select(Empresa)
+        .where(Empresa.deletado_em.is_(None))
+        .order_by(Empresa.razao_social.asc())
     ).scalars().all()
     return render_template("admin/analises.html", analises=rows, empresas=empresas_filtro)
 
@@ -185,7 +198,9 @@ def analise_nova():
       - status_analise inicia em AGUARDANDO_RELATORIO (default do schema).
     """
     empresas = db.session.execute(
-        select(Empresa).order_by(Empresa.razao_social.asc())
+        select(Empresa)
+        .where(Empresa.deletado_em.is_(None))
+        .order_by(Empresa.razao_social.asc())
     ).scalars().all()
 
     if request.method == "POST":
@@ -328,7 +343,11 @@ def empresa_nova():
             role="CLIENTE",
             ativo=True,
         )
-        novo_user.set_senha(form["usuario_senha"])
+        # Sem senha provisória: o cliente DEFINE a senha pelo link de ativação.
+        # Geramos um hash aleatório e inutilizável (senha_hash é NOT NULL) e
+        # mantemos primeiro_acesso=True (default) — ninguém loga até ativar.
+        novo_user.set_senha(secrets.token_urlsafe(32))
+        novo_user.primeiro_acesso = True
 
         try:
             db.session.add(nova_emp)
@@ -342,7 +361,23 @@ def empresa_nova():
             flash(f"Não foi possível salvar (CNPJ ou e-mail já cadastrados, ou FK inválida): {msg}", "danger")
             return redirect(url_for("admin.empresa_nova"))
 
-        flash(f"Empresa '{nova_emp.razao_social}' cadastrada com usuário cliente vinculado.", "success")
+        # Insert confirmado → e-mail de boas-vindas com LINK SEGURO de definição
+        # de senha (token de 15 min), DIRETO pelo Flask (sem webhook externo).
+        # Envio assíncrono e fail-safe; nunca derruba o cadastro.
+        link_definir = None
+        try:
+            from blueprints.auth import gerar_token_definir_senha
+            token = gerar_token_definir_senha(novo_user.email)
+            link_definir = url_for("auth.ativar_acesso", token=token, _external=True)
+            current_app.logger.info("Link de ativação para %s: %s", novo_user.email, link_definir)
+            email_boas_vindas(novo_user, link_definir)
+        except Exception as e:  # noqa: BLE001
+            current_app.logger.warning("Falha ao agendar e-mail de boas-vindas: %s", e)
+
+        # Sem SMTP configurado (dev): mostra o link ao admin para teste/repasse manual.
+        if link_definir and not current_app.config.get("MAIL_ATIVO") and current_app.debug:
+            flash(f"[Modo simulação · SMTP não configurado] Link de ativação do cliente: {link_definir}", "info")
+        flash(f"Empresa '{nova_emp.razao_social}' cadastrada. Enviamos ao cliente um link para definir a senha.", "success")
         return redirect(url_for("admin.empresas"))
 
     return render_template("admin/empresa_form.html", empresa=None, planos=planos, segmentos=segmentos)
@@ -389,6 +424,181 @@ def empresa_editar(id_empresa):
         return redirect(url_for("admin.empresas"))
 
     return render_template("admin/empresa_form.html", empresa=empresa, planos=planos, segmentos=segmentos)
+
+
+@admin_bp.route("/empresa/excluir/<int:id_empresa>", methods=["POST"])
+@admin_required
+def empresa_excluir(id_empresa):
+    """
+    SOFT DELETE — move a empresa para a Lixeira (estilo Google Drive/Windows).
+
+    Não apaga nada: apenas carimba `deletado_em` com o instante atual, o que a
+    remove das listagens normais (que filtram deletado_em IS NULL). Os usuários
+    CLIENTE vinculados são desativados (ativo=False) para impedir login enquanto
+    a empresa estiver na lixeira — a flag é restaurada em /empresa/restaurar.
+    Reversível e não-destrutivo; a exclusão física só ocorre em
+    /empresa/excluir-permanente. POST-only + confirmação no modal.
+    """
+    empresa = db.session.get(Empresa, id_empresa)
+    if not empresa or empresa.deletado_em is not None:
+        flash("Empresa não encontrada (ou já está na lixeira).", "danger")
+        return redirect(url_for("admin.empresas"))
+
+    nome_emp = empresa.nome_fantasia or empresa.razao_social
+    agora = datetime.now(timezone.utc)
+    empresa.deletado_em = agora
+    empresa.data_atualizacao = agora
+    # Bloqueia o acesso do cliente enquanto estiver na lixeira.
+    for u in empresa.usuarios:
+        u.ativo = False
+
+    try:
+        db.session.commit()
+    except IntegrityError as e:
+        db.session.rollback()
+        flash(f"Não foi possível mover '{nome_emp}' para a lixeira: {e.orig if e.orig else e}", "danger")
+        return redirect(url_for("admin.empresas"))
+
+    flash(f"Cliente '{nome_emp}' movido para a lixeira com sucesso.", "success")
+    return redirect(url_for("admin.empresas"))
+
+
+@admin_bp.route("/lixeira")
+@admin_required
+def lixeira():
+    """Empresas que estão na lixeira (soft-deleted): deletado_em IS NOT NULL."""
+    rows = db.session.execute(
+        select(Empresa)
+        .where(Empresa.deletado_em.is_not(None))
+        .order_by(Empresa.deletado_em.desc())
+    ).scalars().all()
+    return render_template("admin/lixeira.html", empresas=rows)
+
+
+@admin_bp.route("/empresa/restaurar/<int:id_empresa>", methods=["POST"])
+@admin_required
+def empresa_restaurar(id_empresa):
+    """
+    Restaura uma empresa da lixeira: limpa `deletado_em` (volta às listagens) e
+    reativa os usuários CLIENTE vinculados. Traz de volta todo o histórico
+    (análises, relatórios, chamados) intacto — nada havia sido apagado.
+    """
+    empresa = db.session.get(Empresa, id_empresa)
+    if not empresa or empresa.deletado_em is None:
+        flash("Empresa não encontrada na lixeira.", "danger")
+        return redirect(url_for("admin.lixeira"))
+
+    nome_emp = empresa.nome_fantasia or empresa.razao_social
+    empresa.deletado_em = None
+    empresa.data_atualizacao = datetime.now(timezone.utc)
+    for u in empresa.usuarios:
+        u.ativo = True
+
+    try:
+        db.session.commit()
+    except IntegrityError as e:
+        db.session.rollback()
+        flash(f"Não foi possível restaurar '{nome_emp}': {e.orig if e.orig else e}", "danger")
+        return redirect(url_for("admin.lixeira"))
+
+    flash(f"Cliente '{nome_emp}' restaurado com sucesso.", "success")
+    return redirect(url_for("admin.lixeira"))
+
+
+@admin_bp.route("/empresa/excluir-permanente/<int:id_empresa>", methods=["POST"])
+@admin_required
+def empresa_excluir_permanente(id_empresa):
+    """
+    HARD DELETE — exclusão física DEFINITIVA e IRREVERSÍVEL.
+
+    Só age sobre empresas que JÁ estão na lixeira (deletado_em IS NOT NULL),
+    garantindo o duplo passo (soft → hard). Como os relationships não têm
+    cascade (controle explícito do que sai do banco), removemos os filhos em
+    ordem topológica, tudo na MESMA transação (segurança transacional):
+
+      1) Por análise: ProdutoCurvaABC, UploadRelatorio (+arquivos físicos),
+         IndicadorAnalise (1:1), RelatorioAnalise (1:1) → depois a Analise;
+      2) Por chamado: MensagemSuporte → depois o ChamadoSuporte;
+      3) Notificacao dos usuários da empresa;
+      4) Usuario(s) da empresa;
+      5) a própria Empresa.
+
+    Qualquer falha de integridade → rollback atômico (nada é apagado) + aviso.
+    """
+    empresa = db.session.get(Empresa, id_empresa)
+    if not empresa or empresa.deletado_em is None:
+        flash("A exclusão permanente só é possível para empresas que estão na lixeira.", "danger")
+        return redirect(url_for("admin.lixeira"))
+
+    nome_emp = empresa.nome_fantasia or empresa.razao_social
+
+    try:
+        # 1) Análises e tudo que depende delas.
+        analises = db.session.execute(
+            select(Analise).where(Analise.id_empresa == id_empresa)
+        ).scalars().all()
+        for analise in analises:
+            db.session.execute(
+                ProdutoCurvaABC.__table__.delete().where(
+                    ProdutoCurvaABC.id_analise == analise.id_analise
+                )
+            )
+            uploads = db.session.execute(
+                select(UploadRelatorio).where(UploadRelatorio.id_analise == analise.id_analise)
+            ).scalars().all()
+            for up in uploads:
+                try:
+                    caminho = _resolver_caminho(up)
+                    if caminho and os.path.exists(caminho):
+                        os.remove(caminho)
+                except OSError:
+                    pass  # remoção física é best-effort; o registro segue sendo deletado
+                db.session.delete(up)
+            if analise.indicador is not None:
+                db.session.delete(analise.indicador)
+            if analise.relatorio is not None:
+                db.session.delete(analise.relatorio)
+            db.session.delete(analise)
+
+        # 2) Chamados de suporte e suas mensagens.
+        chamados = db.session.execute(
+            select(ChamadoSuporte).where(ChamadoSuporte.id_empresa == id_empresa)
+        ).scalars().all()
+        for ch in chamados:
+            db.session.execute(
+                MensagemSuporte.__table__.delete().where(
+                    MensagemSuporte.id_chamado == ch.id_chamado
+                )
+            )
+            db.session.delete(ch)
+
+        # 3/4) Notificações dos usuários da empresa + os próprios usuários.
+        ids_usuarios = [u.id_usuario for u in empresa.usuarios]
+        if ids_usuarios:
+            db.session.execute(
+                Notificacao.__table__.delete().where(
+                    Notificacao.id_usuario.in_(ids_usuarios)
+                )
+            )
+        for u in list(empresa.usuarios):
+            db.session.delete(u)
+
+        # 5) A própria empresa.
+        db.session.delete(empresa)
+
+        db.session.commit()
+    except IntegrityError as e:
+        db.session.rollback()
+        flash(
+            f"Não foi possível excluir permanentemente '{nome_emp}': ainda há dados vinculados. "
+            f"Detalhe: {e.orig if e.orig else e}",
+            "danger",
+        )
+        current_app.logger.warning("Falha no hard delete da empresa %s: %s", id_empresa, e.orig if e.orig else e)
+        return redirect(url_for("admin.lixeira"))
+
+    flash(f"Cliente '{nome_emp}' e todos os seus dados foram excluídos permanentemente.", "success")
+    return redirect(url_for("admin.lixeira"))
 
 
 def _buscar_upload(id_analise: int, tipo: str):
@@ -884,3 +1094,124 @@ def ticket_detalhe(id_chamado):
         "admin/ticket_detalhe.html",
         chamado=chamado, categorias=CATEGORIAS_TICKET, status_opcoes=STATUS_CHAMADO,
     )
+
+
+# =====================================================================
+# CMS — Base de Conhecimento (Guia) gerenciável pelo Admin
+# =====================================================================
+_GUIA_IMG_EXT = {"png", "jpg", "jpeg", "webp", "gif"}
+
+
+def _categorias_existentes():
+    """Lista de categorias já usadas (para o datalist do formulário)."""
+    return [c for (c,) in db.session.execute(
+        select(GuiaTopico.categoria).distinct().order_by(GuiaTopico.categoria)
+    ).all()]
+
+
+def _salvar_imagem_guia(arquivo):
+    """
+    Salva com segurança a imagem enviada em static/uploads/guia/ e devolve o
+    caminho RELATIVO ao static (ex.: 'uploads/guia/abc123.png'), ou None.
+    Valida extensão; nomeia pelo hash do conteúdo (evita colisão e path traversal).
+    """
+    if not arquivo or not arquivo.filename:
+        return None
+    ext = os.path.splitext(secure_filename(arquivo.filename))[1].lower().lstrip(".")
+    if ext not in _GUIA_IMG_EXT:
+        flash(f"Imagem .{ext} não suportada. Use: {sorted(_GUIA_IMG_EXT)}.", "warning")
+        return None
+    conteudo = arquivo.read()
+    if not conteudo:
+        return None
+    destino_dir = Path(current_app.static_folder) / "uploads" / "guia"
+    destino_dir.mkdir(parents=True, exist_ok=True)
+    nome = f"{hashlib.sha256(conteudo).hexdigest()[:16]}.{ext}"
+    (destino_dir / nome).write_bytes(conteudo)
+    return f"uploads/guia/{nome}"
+
+
+@admin_bp.route("/guia")
+@admin_required
+def guia():
+    """Listagem (CMS) de todas as soluções da Base de Conhecimento."""
+    topicos = db.session.execute(
+        select(GuiaTopico).order_by(GuiaTopico.categoria, GuiaTopico.id)
+    ).scalars().all()
+    return render_template("admin/guia.html", topicos=topicos, total=len(topicos))
+
+
+@admin_bp.route("/guia/novo", methods=["GET", "POST"])
+@admin_required
+def guia_novo():
+    """Cria um novo tópico da Base de Conhecimento."""
+    if request.method == "POST":
+        categoria = (request.form.get("categoria") or "").strip()
+        pergunta = (request.form.get("pergunta") or "").strip()
+        resposta = (request.form.get("resposta") or "").strip()
+        if not (categoria and pergunta and resposta):
+            flash("Categoria, pergunta e resposta são obrigatórias.", "danger")
+            return redirect(url_for("admin.guia_novo"))
+
+        topico = GuiaTopico(categoria=categoria, pergunta=pergunta, resposta=resposta)
+        img = _salvar_imagem_guia(request.files.get("imagem"))
+        if img:
+            topico.imagem_url = img
+        db.session.add(topico)
+        db.session.commit()
+        flash("Tópico criado na Base de Conhecimento.", "success")
+        return redirect(url_for("admin.guia"))
+
+    return render_template(
+        "admin/guia_form.html", topico=None, categorias=_categorias_existentes(),
+    )
+
+
+@admin_bp.route("/guia/editar/<int:id>", methods=["GET", "POST"])
+@admin_required
+def guia_editar(id):
+    """Edita um tópico existente (conteúdo e/ou imagem)."""
+    topico = db.session.get(GuiaTopico, id)
+    if topico is None:
+        flash("Tópico não encontrado.", "danger")
+        return redirect(url_for("admin.guia"))
+
+    if request.method == "POST":
+        categoria = (request.form.get("categoria") or "").strip()
+        pergunta = (request.form.get("pergunta") or "").strip()
+        resposta = (request.form.get("resposta") or "").strip()
+        if not (categoria and pergunta and resposta):
+            flash("Categoria, pergunta e resposta são obrigatórias.", "danger")
+            return redirect(url_for("admin.guia_editar", id=id))
+
+        topico.categoria = categoria
+        topico.pergunta = pergunta
+        topico.resposta = resposta
+        topico.ativo = bool(request.form.get("ativo"))
+        if request.form.get("remover_imagem"):
+            topico.imagem_url = None
+        img = _salvar_imagem_guia(request.files.get("imagem"))
+        if img:
+            topico.imagem_url = img
+        topico.data_atualizacao = datetime.now(timezone.utc)
+        db.session.commit()
+        flash("Tópico atualizado.", "success")
+        return redirect(url_for("admin.guia"))
+
+    return render_template(
+        "admin/guia_form.html", topico=topico, categorias=_categorias_existentes(),
+    )
+
+
+@admin_bp.route("/guia/<int:id>/deletar", methods=["POST"])
+@admin_required
+def guia_deletar(id):
+    """Remove um tópico da Base de Conhecimento (POST-only)."""
+    topico = db.session.get(GuiaTopico, id)
+    if topico is None:
+        flash("Tópico não encontrado.", "danger")
+        return redirect(url_for("admin.guia"))
+    db.session.delete(topico)
+    db.session.commit()
+    flash("Tópico removido da Base de Conhecimento.", "success")
+    return redirect(url_for("admin.guia"))

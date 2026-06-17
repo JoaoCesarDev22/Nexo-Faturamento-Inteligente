@@ -33,6 +33,15 @@ def _ler_token_reset(token: str):
         return None
 
 
+def gerar_token_definir_senha(email: str) -> str:
+    """
+    Token assinado (expira em 15 min) atrelado ao e-mail, para definição de senha
+    via link — usado tanto na ativação de boas-vindas quanto na recuperação.
+    Público: chamado pelo admin ao cadastrar um novo cliente.
+    """
+    return _serializer().dumps(email)
+
+
 def _validar_nova_senha(nova: str, confirma: str):
     """Regras mínimas de senha. Retorna mensagem de erro ou None se OK."""
     if len(nova) < 8:
@@ -193,3 +202,42 @@ def resetar_senha(token):
         return redirect(url_for("auth.login"))
 
     return render_template("auth/resetar_senha.html", token=token)
+
+
+@auth_bp.route("/primeiro-acesso/<token>", methods=["GET", "POST"])
+def ativar_acesso(token):
+    """
+    Ativação de conta via link do e-mail de boas-vindas (anônimo). Valida o token
+    (15 min). Expirado/adulterado → tela amigável para solicitar novo link
+    (recuperar-senha). Válido → o cliente define a senha e a conta é ativada.
+    """
+    email = _ler_token_reset(token)
+    usuario = None
+    if email is not None:
+        usuario = db.session.execute(
+            select(Usuario).where(Usuario.email == email)
+        ).scalar_one_or_none()
+
+    if usuario is None or not usuario.ativo:
+        flash(
+            "Seu link de definição de senha é inválido ou expirou (validade de 15 minutos). "
+            "Informe seu e-mail abaixo para receber um novo link.", "danger",
+        )
+        return redirect(url_for("auth.recuperar_senha"))
+
+    if request.method == "POST":
+        nova = request.form.get("nova_senha", "")
+        confirma = request.form.get("confirma_senha", "")
+        erro = _validar_nova_senha(nova, confirma)
+        if erro:
+            flash(erro, "danger")
+            return render_template("auth/primeiro_acesso_token.html", token=token, usuario=usuario)
+
+        usuario.set_senha(nova)
+        usuario.primeiro_acesso = False  # conta ativada
+        usuario.data_atualizacao = datetime.now(timezone.utc)
+        db.session.commit()
+        flash("Senha definida com sucesso! Já pode acessar o portal.", "success")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/primeiro_acesso_token.html", token=token, usuario=usuario)

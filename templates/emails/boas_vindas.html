@@ -1,0 +1,35 @@
+{% extends "emails/_base.html" %}
+{% block content %}
+<h1 style="margin:0 0 8px;font-size:20px;color:#ffffff;">Bem-vindo(a) ao NEXO! 👋</h1>
+<p style="margin:0 0 18px;color:#c4c6d2;">
+  Olá{% if usuario and usuario.nome %}, {{ usuario.nome.split(' ')[0] }}{% endif %}! Sua conta no portal
+  <strong style="color:#ffffff;">NEXO - Faturamento Inteligente</strong> foi criada. Para ativá-la,
+  defina sua senha de acesso pessoal clicando no botão abaixo.
+</p>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#181824;border-radius:12px;border:1px solid rgba(255,255,255,0.07);margin-bottom:22px;">
+  <tr><td style="padding:16px 20px;">
+    <div style="color:#9aa0b7;font-size:12px;text-transform:uppercase;letter-spacing:0.04em;">E-mail de acesso</div>
+    <div style="color:#ffffff;font-size:15px;font-weight:600;">{{ usuario.email }}</div>
+  </td></tr>
+</table>
+
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 22px;">
+  <tr><td style="border-radius:10px;background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);">
+    <a href="{{ link_definir }}" style="display:inline-block;padding:14px 30px;color:#ffffff;font-size:15px;font-weight:800;text-decoration:none;letter-spacing:0.2px;">
+      🔐 Definir Senha de Acesso
+    </a>
+  </td></tr>
+</table>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#181824;border-radius:12px;border:1px solid rgba(255,255,255,0.07);border-left:4px solid #f59e0b;margin-bottom:4px;">
+  <tr><td style="padding:14px 18px;color:#fcd99a;font-size:13px;line-height:1.5;">
+    ⏱️ Este link é válido por <strong>15 minutos</strong>, por segurança. Se expirar, você poderá
+    solicitar um novo na própria tela. Nunca enviamos senhas por e-mail.
+  </td></tr>
+</table>
+
+<p style="margin:14px 0 0;color:#9aa0b7;font-size:12px;line-height:1.5;">
+  Se você não esperava este convite, ignore este e-mail.
+</p>
+{% endblock %}

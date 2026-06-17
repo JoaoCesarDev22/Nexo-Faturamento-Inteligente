@@ -114,20 +114,16 @@
         </div>
         <div class="nexo-card-body">
             <div class="row g-3">
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-6">
                     <label class="nexo-label" for="usuario_nome">Nome <span class="req">*</span></label>
                     <input type="text" class="form-control" id="usuario_nome" name="usuario_nome" placeholder="Nome do responsável" required>
                 </div>
-                <div class="col-12 col-md-4">
+                <div class="col-12 col-md-6">
                     <label class="nexo-label" for="usuario_email">E-mail <span class="req">*</span></label>
                     <input type="email" class="form-control" id="usuario_email" name="usuario_email" placeholder="cliente@empresa.com.br" required>
                 </div>
-                <div class="col-12 col-md-4">
-                    <label class="nexo-label" for="usuario_senha">Senha inicial <span class="req">*</span></label>
-                    <input type="text" class="form-control" id="usuario_senha" name="usuario_senha" placeholder="senha de primeiro acesso" required>
-                </div>
             </div>
-            <p class="field-hint mt-3 mb-0"><i class="bi bi-shield-lock"></i> Será criado apenas o usuário do tipo <strong>CLIENTE</strong> vinculado a esta empresa.</p>
+            <p class="field-hint mt-3 mb-0"><i class="bi bi-shield-lock"></i> Será criado um usuário <strong>CLIENTE</strong> e enviado ao e-mail um <strong>link seguro para definir a senha</strong> (válido por 15 min). Nenhuma senha provisória é gerada.</p>
         </div>
     </div>
     {% endif %}

@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+
+{% block title %}Lixeira — NEXO Admin{% endblock %}
+{% block page_title %}Lixeira{% endblock %}
+
+{% block content %}
+<div class="page-head">
+    <div>
+        <h1>Lixeira</h1>
+        <p class="sub">Clientes movidos para a lixeira. Restaure para reativar ou exclua permanentemente do banco.</p>
+    </div>
+    <div class="page-head-actions">
+        <a href="{{ url_for('admin.empresas') }}" class="btn-ghost"><i class="bi bi-arrow-left"></i> Voltar para Empresas</a>
+    </div>
+</div>
+
+<div class="table-wrap">
+    {% if empresas %}
+    <div class="table-responsive-x">
+        <table class="nexo-table">
+            <thead>
+                <tr>
+                    <th>Razão social</th>
+                    <th>Nome fantasia</th>
+                    <th>CNPJ</th>
+                    <th>Plano</th>
+                    <th>E-mail de contato</th>
+                    <th>Movido em</th>
+                    <th class="text-end">Ações</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in empresas %}
+                <tr>
+                    <td class="t-strong">{{ e.razao_social }}</td>
+                    <td class="t-mut">{{ e.nome_fantasia or '—' }}</td>
+                    <td class="t-mono t-mut">{{ e.cnpj }}</td>
+                    <td>{{ m.badge_plano(e.plano_atual.nome_plano if e.plano_atual else '—') }}</td>
+                    <td class="t-mut">{{ e.email_contato }}</td>
+                    <td class="t-mut t-mono">{{ e.deletado_em.strftime('%d/%m/%Y %H:%M') if e.deletado_em else '—' }}</td>
+                    <td class="text-end t-mut" style="white-space:nowrap;">
+                        {# Restaurar: ação reversível e segura → POST direto (botão verde). #}
+                        <form method="POST" action="{{ url_for('admin.empresa_restaurar', id_empresa=e.id_empresa) }}" class="d-inline m-0">
+                            <button type="submit" class="btn btn-success btn-sm" title="Restaurar cliente">
+                                <i class="bi bi-arrow-counterclockwise"></i> Restaurar
+                            </button>
+                        </form>
+                        {# Excluir permanente: ação crítica → abre modal de confirmação. #}
+                        <button type="button" class="btn btn-danger btn-sm"
+                                data-bs-toggle="modal" data-bs-target="#confirmPurgeModal"
+                                data-bs-url="{{ url_for('admin.empresa_excluir_permanente', id_empresa=e.id_empresa) }}"
+                                data-bs-empresa="{{ e.nome_fantasia or e.razao_social }}"
+                                data-bs-email="{{ e.email_contato }}"
+                                title="Excluir permanentemente" aria-label="Excluir permanentemente">
+                            <i class="bi bi-trash3"></i> Excluir permanente
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="es-icon"><i class="bi bi-trash"></i></div>
+        <h3>A lixeira está vazia.</h3>
+        <p>Clientes movidos para a lixeira aparecerão aqui, prontos para restauração ou exclusão definitiva.</p>
+        <a href="{{ url_for('admin.empresas') }}" class="btn-nexo mt-3"><i class="bi bi-arrow-left"></i> Voltar para Empresas</a>
+    </div>
+    {% endif %}
+</div>
+
+{# =====================================================================
+   Modal CRÍTICO — exclusão permanente (hard delete, irreversível).
+   1 instância reaproveitada por todas as linhas; a action do form é
+   preenchida em runtime pelo handler de show.bs.modal.
+   ===================================================================== #}
+<div class="modal fade" id="confirmPurgeModal" tabindex="-1"
+     aria-labelledby="confirmPurgeLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-dark text-light border border-danger">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title d-flex align-items-center gap-2" id="confirmPurgeLabel">
+                    <i class="bi bi-exclamation-octagon-fill text-danger"></i>
+                    Exclusão permanente
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Fechar"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Você está prestes a excluir definitivamente o cliente:</p>
+                <ul class="mb-3" style="list-style:none; padding-left:0;">
+                    <li><strong class="text-light" id="confirmPurgeNome">—</strong></li>
+                    <li class="text-muted t-mono" style="font-size:0.88rem;" id="confirmPurgeEmail">—</li>
+                </ul>
+                <div class="alert alert-danger d-flex align-items-start gap-2 mb-0" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill flash-icon" aria-hidden="true"></i>
+                    <div class="flash-text">
+                        Essa ação é <strong>irreversível</strong> e apagará do banco
+                        <strong>todos os relatórios, análises, indicadores, chamados e o usuário</strong>
+                        deste cliente. Não há como desfazer.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">
+                    Cancelar
+                </button>
+                <form method="POST" action="" id="confirmPurgeForm" class="d-inline m-0">
+                    <button type="submit" class="btn btn-danger btn-sm">
+                        <i class="bi bi-trash3"></i> Sim, excluir definitivamente
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  /* ---- Modal crítico de exclusão permanente ----
+     Lê data-bs-url / -empresa / -email do botão que abriu o modal e popula a
+     action do form + os spans de contexto. */
+  (function () {
+    var modal = document.getElementById('confirmPurgeModal');
+    if (!modal) return;
+    var form = document.getElementById('confirmPurgeForm');
+    var labelNome = document.getElementById('confirmPurgeNome');
+    var labelEmail = document.getElementById('confirmPurgeEmail');
+    modal.addEventListener('show.bs.modal', function (event) {
+      var trigger = event.relatedTarget;
+      if (!trigger) return;
+      if (form) form.setAttribute('action', trigger.getAttribute('data-bs-url') || '');
+      if (labelNome) labelNome.textContent = trigger.getAttribute('data-bs-empresa') || 'Empresa';
+      if (labelEmail) labelEmail.textContent = trigger.getAttribute('data-bs-email') || '';
+    });
+  })();
+</script>
+{% endblock %}

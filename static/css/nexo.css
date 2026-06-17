@@ -623,6 +623,9 @@ a { text-decoration: none; }
    superior direito, que sobrepunha os botões "Nova empresa"/"Nova análise". */
 .flash-stack { width: 100%; margin-bottom: 18px; display: flex; flex-direction: column; gap: 10px; }
 .flash-stack .alert { box-shadow: var(--shadow); margin-bottom: 0; }
+/* Ícone contextual + texto alinhados dentro do flash (success/info/warning/danger). */
+.flash-icon { font-size: 1.05rem; line-height: 1.5; flex-shrink: 0; opacity: 0.95; }
+.flash-text { flex: 1 1 auto; min-width: 0; }
 
 /* Aviso do Indicador de Pressão de Estoque (regra de negócio) */
 .nota-pressao {
@@ -1211,3 +1214,23 @@ input, textarea, select, option,
 }
 .nexobot-form button:hover { background: var(--grad-hover); }
 @media (max-width: 560px) { .nexobot-panel { width: 88vw; height: 64vh; } }
+
+/* ===================================================================
+   GUIA (CMS) — cabeçalho de categoria, resposta e imagens
+   =================================================================== */
+.guia-cat-head { display: flex; align-items: center; gap: 11px; margin: 22px 0 12px; }
+.guia-cat-head h2 { margin: 0; font-size: 1.05rem; color: var(--text); }
+.guia-resposta { color: #d6d8e3; font-size: 0.93rem; line-height: 1.7; white-space: pre-line; }
+.guia-figure { margin: 14px 0 0; }
+.guia-figure img {
+  max-width: 100%; height: auto; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); box-shadow: var(--shadow);
+}
+/* Pré-visualização da imagem atual no formulário do admin */
+.guia-img-atual img {
+  max-width: 280px; height: auto; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); display: block; margin-bottom: 8px;
+}
+.check-inline { display: inline-flex; align-items: center; gap: 7px; color: var(--text-muted); font-size: 0.88rem; cursor: pointer; }
+.check-inline input { accent-color: var(--primary); }
+.t-dim { color: var(--text-dim); }
