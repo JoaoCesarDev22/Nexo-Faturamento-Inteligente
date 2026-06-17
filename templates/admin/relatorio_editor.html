@@ -30,6 +30,7 @@
             {% if rel and rel.gerado_por_ia %}<span class="nexo-badge b-purple mt-2"><i class="bi bi-robot"></i> Conteúdo atual gerado por IA</span>{% endif %}
         </div>
         <form method="POST" action="{{ url_for('admin.analise_relatorio', id_analise=analise.id_analise) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" name="acao" value="gerar_ia" class="btn-nexo" {{ '' if analise.indicador else 'disabled' }}>
                 <i class="bi bi-stars"></i> Gerar com IA
             </button>
@@ -38,6 +39,7 @@
 </div>
 
 <form method="POST" action="{{ url_for('admin.analise_relatorio', id_analise=analise.id_analise) }}" class="relatorio-doc">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="nexo-card mb-4">
         <div class="nexo-card-body">
             <div class="mb-3">

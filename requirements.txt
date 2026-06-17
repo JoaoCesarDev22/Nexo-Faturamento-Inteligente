@@ -25,5 +25,9 @@ reportlab==4.2.5         # PDF — exportação da análise executiva (ABC + 5W2
 Flask-SocketIO==5.4.1    # async_mode="threading" (estável no Python 3.12)
 simple-websocket==1.1.0  # driver WebSocket para o modo threading
 
+# Segurança — proteção CSRF e rate limiting
+Flask-WTF==1.2.1         # CSRFProtect: token em todas as rotas mutáveis
+Flask-Limiter==3.8.0     # rate limit por IP (login, recuperação de senha)
+
 # IA — geração automatizada da devolutiva (Claude / Anthropic)
 anthropic==0.109.1

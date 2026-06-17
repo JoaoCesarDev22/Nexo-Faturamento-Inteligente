@@ -24,6 +24,7 @@
                 {{ chat.conversa(chamado.mensagens, current_user.id_usuario) }}
 
                 <form method="POST" action="{{ url_for('admin.ticket_detalhe', id_chamado=chamado.id_chamado) }}" class="chat-reply mt-3">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="acao" value="responder">
                     <textarea name="mensagem" class="form-control nexo-input" rows="3" placeholder="Escreva a resposta ao cliente…" required></textarea>
                     <div class="d-flex justify-content-end mt-2">
@@ -40,6 +41,7 @@
             <div class="nexo-card-head"><div><h2>Status do chamado</h2></div></div>
             <div class="nexo-card-body">
                 <form method="POST" action="{{ url_for('admin.ticket_detalhe', id_chamado=chamado.id_chamado) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <input type="hidden" name="acao" value="alterar_status">
                     <label class="kpi-label">Alterar status</label>
                     <select name="status_chamado" class="form-select nexo-input mb-3">

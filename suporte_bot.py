@@ -123,6 +123,18 @@ def _responder_local(mensagem: str) -> str:
             "se precisar falar com a equipe NEXO.")
 
 
+# Termos que a resposta do bot JAMAIS deve conter (mesma disciplina do ETL e da
+# devolutiva por IA): o NexoBot fala de USO DO PORTAL, nunca de finanças/contábil.
+_BOT_PROIBIDAS = ("margem", "lucro", "cmv", "rentab", "prejuíz", "prejuiz")
+
+
+def _saida_segura(texto: str) -> bool:
+    """True se a saída do modelo é não-vazia e não contém termos proibidos."""
+    if not texto or not texto.strip():
+        return False
+    return not any(p in texto.lower() for p in _BOT_PROIBIDAS)
+
+
 def _responder_hf(mensagem: str) -> str | None:
     """Tenta a Inference API gratuita da Hugging Face. Retorna texto ou None."""
     token = current_app.config.get("HF_API_TOKEN")
@@ -147,7 +159,13 @@ def _responder_hf(mensagem: str) -> str | None:
         resp.raise_for_status()
         dados = resp.json()
         if isinstance(dados, list) and dados and dados[0].get("generated_text"):
-            return dados[0]["generated_text"].strip()
+            texto = dados[0]["generated_text"].strip()
+            # Auditoria de escopo: se o modelo fugiu do tema e citou termo
+            # proibido (ou veio vazio), descartamos e caímos no fallback local.
+            if not _saida_segura(texto):
+                logger.warning("Saída do HF rejeitada (vazia ou termo proibido) — usando fallback local.")
+                return None
+            return texto
         logger.warning("Resposta inesperada da HF Inference API: %s", str(dados)[:200])
         return None
     except Exception as e:  # noqa: BLE001

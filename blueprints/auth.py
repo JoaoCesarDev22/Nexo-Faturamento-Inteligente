@@ -1,12 +1,13 @@
 import logging
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from flask import Blueprint, render_template, redirect, url_for, flash, request, session, current_app
 from flask_login import login_user, logout_user, login_required, current_user
 from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadData
 from sqlalchemy import select
 
-from extensions import db
+from extensions import db, limiter
 from models import Usuario
 from emails import email_recuperacao_senha
 
@@ -14,6 +15,25 @@ logger = logging.getLogger(__name__)
 
 # Criação do Blueprint de Autenticação
 auth_bp = Blueprint("auth", __name__)
+
+
+def _destino_seguro(alvo: str) -> bool:
+    """
+    True se `alvo` é um caminho LOCAL seguro para redirect (mitiga open redirect).
+    Rejeita URLs absolutas e protocol-relative (//evil.com, /\\evil.com), que o
+    navegador trataria como destino externo.
+    """
+    if not alvo:
+        return False
+    parsed = urlparse(alvo)
+    # Sem esquema e sem netloc = caminho relativo ao próprio site.
+    return (
+        not parsed.scheme
+        and not parsed.netloc
+        and alvo.startswith("/")
+        and not alvo.startswith("//")
+        and not alvo.startswith("/\\")
+    )
 
 # --- Recuperação de senha (itsdangerous) ---
 _SALT_RESET = "nexo-reset-senha-v1"   # namespaceia o token; trocar invalida tokens antigos
@@ -52,6 +72,7 @@ def _validar_nova_senha(nova: str, confirma: str):
 
 
 @auth_bp.route("/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])  # trava brute force de senha
 def login():
     """Gere o ecrã e a lógica de login do utilizador."""
     # Se já estiver autenticado, vai DIRETO ao dashboard do perfil correto.
@@ -83,9 +104,10 @@ def login():
             login_user(usuario, remember=False)
             session["boot_id"] = current_app.config["BOOT_ID"]
 
-            # Trata o redirecionamento caso o utilizador tenha tentado aceder a uma página protegida antes
+            # Trata o redirecionamento caso o utilizador tenha tentado aceder a uma
+            # página protegida antes. Só aceitamos destinos LOCAIS (anti open redirect).
             next_page = request.args.get("next")
-            if next_page and next_page.startswith("/"):
+            if _destino_seguro(next_page):
                 return redirect(next_page)
 
             # Redirecionamento padrão com base no perfil (Role)
@@ -140,6 +162,7 @@ def primeiro_acesso():
 
 
 @auth_bp.route("/recuperar-senha", methods=["GET", "POST"])
+@limiter.limit("5 per minute", methods=["POST"])  # evita abuso do envio de e-mail
 def recuperar_senha():
     """
     Solicita o link de redefinição. Por segurança, a resposta é SEMPRE genérica

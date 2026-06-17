@@ -40,7 +40,7 @@ import os
 import re
 import logging
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import namedtuple
 
 import pandas as pd
@@ -550,32 +550,36 @@ def _classificar_curva_abc(grupo: pd.DataFrame) -> dict:
     base["perc_ind"] = base["fat"] / total * 100.0
     base["perc_acum"] = base["perc_ind"].cumsum().clip(upper=100.0)
 
-    produtos = []
-    contagem = {"A": 0, "B": 0, "C": 0}
-    fat_classe = {"A": 0.0, "B": 0.0, "C": 0.0}
+    # Classificação A/B/C VETORIZADA (np.select) — evita iterrows() sobre todo o
+    # universo de produtos (lento em catálogos grandes). O líder (posição 0) é
+    # forçado a 'A' para um único produto dominante não cair em C sozinho.
+    import numpy as np
+    base["classe"] = np.select(
+        [base["perc_acum"] <= ABC_LIMITE_A, base["perc_acum"] <= ABC_LIMITE_B],
+        ["A", "B"],
+        default="C",
+    )
+    base.loc[0, "classe"] = "A"
 
-    for i, row in base.iterrows():
-        acum = float(row["perc_acum"])
-        # Líder sempre Classe A; demais por faixa de acumulado (80% / 95%).
-        if i == 0 or acum <= ABC_LIMITE_A:
-            classe = "A"
-        elif acum <= ABC_LIMITE_B:
-            classe = "B"
-        else:
-            classe = "C"
-        fat = float(row["fat"])
-        contagem[classe] += 1
-        fat_classe[classe] += fat
-        if i < TOP_N_CURVA_ABC:
-            produtos.append({
-                "posicao": i + 1,
-                "nome": str(row["nome"]),
-                "faturamento": fat,
-                "quantidade": float(row["qtde"]) if "qtde" in base.columns else None,
-                "perc_individual": round(float(row["perc_ind"]), 2),
-                "perc_acumulado": round(acum, 2),
-                "classe": classe,
-            })
+    # Resumo por classe via groupby vetorizado (universo completo).
+    agg = base.groupby("classe")["fat"].agg(["count", "sum"])
+    contagem = {c: int(agg["count"].get(c, 0)) for c in ("A", "B", "C")}
+    fat_classe = {c: float(agg["sum"].get(c, 0.0)) for c in ("A", "B", "C")}
+
+    # Apenas o top-N é materializado para persistência/exibição — aqui sim
+    # iterrows é barato (no máximo TOP_N_CURVA_ABC linhas).
+    produtos = []
+    tem_qtde = "qtde" in base.columns
+    for i, row in base.head(TOP_N_CURVA_ABC).iterrows():
+        produtos.append({
+            "posicao": i + 1,
+            "nome": str(row["nome"]),
+            "faturamento": float(row["fat"]),
+            "quantidade": float(row["qtde"]) if tem_qtde else None,
+            "perc_individual": round(float(row["perc_ind"]), 2),
+            "perc_acumulado": round(float(row["perc_acum"]), 2),
+            "classe": str(row["classe"]),
+        })
 
     resumo = [
         {
@@ -765,7 +769,7 @@ def _persistir_indicadores(db_session, id_analise: int, kpis: dict) -> None:
     indicador.saldo_estimado_parado = kpis["saldo_estimado_parado"]
     indicador.periodo_base_inicio = kpis.get("periodo_base_inicio")
     indicador.periodo_base_fim = kpis.get("periodo_base_fim")
-    indicador.data_geracao = datetime.utcnow()
+    indicador.data_geracao = datetime.now(timezone.utc)
 
 
 def _persistir_curva_abc(db_session, id_analise: int, kpis: dict) -> None:

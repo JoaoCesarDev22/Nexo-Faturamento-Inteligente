@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {# Token CSRF exposto para chamadas fetch/AJAX (enviado no header X-CSRFToken). #}
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}NEXO — Faturamento Inteligente{% endblock %}</title>
 
     <!-- Fontes: Inter (texto) + JetBrains Mono (KPIs/números) -->
@@ -130,6 +132,7 @@
                         </div>
                         <div class="bell-foot" id="bellFoot" {% if _c == 0 %}style="display:none;"{% endif %}>
                             <form method="POST" action="{{ url_for('notificacoes.marcar_lidas') }}" class="m-0" id="bellMarkForm">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button type="submit" class="bell-mark"><i class="bi bi-check2-all"></i> Marcar todas como lidas</button>
                             </form>
                         </div>
@@ -495,9 +498,13 @@
           if (!txt) return;
           add(txt, 'user'); input.value = ''; input.focus();
           var typing = add('…', 'bot'); typing.classList.add('nb-typing');
+          var csrf = document.querySelector('meta[name="csrf-token"]');
           fetch('/api/suporte-bot', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'X-CSRFToken': csrf ? csrf.getAttribute('content') : '',
+            },
             body: JSON.stringify({ mensagem: txt }),
           }).then(function (r) { return r.json(); })
             .then(function (d) { typing.remove(); add(d.resposta || 'Desculpe, tente de novo.', 'bot'); })

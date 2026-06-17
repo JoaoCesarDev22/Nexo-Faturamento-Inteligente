@@ -23,6 +23,7 @@
 <form method="POST"
       action="{{ url_for('admin.empresa_editar', id_empresa=empresa.id_empresa) if ed else url_for('admin.empresa_nova') }}"
       class="relatorio-doc" style="max-width:980px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="nexo-card mb-4">
         <div class="nexo-card-head">
             <div>

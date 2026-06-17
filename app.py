@@ -24,7 +24,7 @@ from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
 from config import config_by_name
-from extensions import db, login_manager, migrate, mail, socketio
+from extensions import db, login_manager, migrate, mail, socketio, csrf, limiter
 
 
 def _set_sqlite_pragma(dbapi_connection, connection_record):
@@ -93,7 +93,12 @@ def create_app(config_name: str = None) -> Flask:
     # user_loader/blueprints; aqui basta registrar db + app.
     migrate.init_app(app, db)
     mail.init_app(app)
-    socketio.init_app(app)
+    # Socket.IO com origens restritas (anti-CSWSH) — ver config.SOCKETIO_CORS_ORIGINS.
+    socketio.init_app(app, cors_allowed_origins=app.config["SOCKETIO_CORS_ORIGINS"])
+    # Proteção CSRF global (todas as rotas mutáveis exigem token válido).
+    csrf.init_app(app)
+    # Rate limiting (limites explícitos por rota via decorator).
+    limiter.init_app(app)
     # Registra os handlers de WebSocket (connect/disconnect → salas por usuário).
     import realtime  # noqa: F401
 
@@ -127,7 +132,14 @@ def create_app(config_name: str = None) -> Flask:
         if request.endpoint == "static":
             return
         if current_user.is_authenticated:
+            # 1) Sessão de um boot anterior do servidor → derruba.
             if session.get("boot_id") != app.config["BOOT_ID"]:
+                logout_user()
+                session.clear()
+            # 2) Conta desativada no meio da sessão (ex.: empresa movida para a
+            #    lixeira desativa seus usuários) → encerra a sessão na hora, sem
+            #    esperar um restart do servidor.
+            elif not current_user.is_active:
                 logout_user()
                 session.clear()
         elif "_user_id" in session:
@@ -193,6 +205,23 @@ def create_app(config_name: str = None) -> Flask:
     def healthz():
         return {"status": "ok"}, 200
 
+    # Tratamento amigável de CSRF inválido/ausente (Flask-WTF) e rate limit (429).
+    from flask_wtf.csrf import CSRFError
+
+    @app.errorhandler(CSRFError)
+    def _csrf_error(e):
+        # Token ausente/expirado → mensagem clara e volta para a origem (re-render
+        # com token novo). Evita expor o traceback de "The CSRF token is missing".
+        from flask import flash
+        flash("Sua sessão expirou ou o formulário é inválido. Tente novamente.", "warning")
+        return redirect(request.referrer or url_for("auth.login")), 400
+
+    @app.errorhandler(429)
+    def _rate_limit(e):
+        return render_template("erro_simples.html", titulo="Muitas tentativas",
+                               mensagem="Você fez muitas requisições em pouco tempo. "
+                                        "Aguarde um minuto e tente novamente."), 429
+
     return app
 
 
@@ -200,13 +229,27 @@ def create_app(config_name: str = None) -> Flask:
 # Em produção, use um servidor compatível com WebSocket (ex.: gunicorn com
 # worker apropriado). O socketio.run sobe o servidor com suporte a WebSocket.
 if __name__ == "__main__":
-    app = create_app()
+    config_name = os.environ.get("FLASK_ENV", "development")
+    app = create_app(config_name)
+
+    # SEGURANÇA: o debugger interativo do Werkzeug permite execução de código
+    # (RCE via PIN) e jamais pode ficar exposto em produção. Só habilitamos o
+    # debug — e o allow_unsafe_werkzeug — quando o ambiente é DESENVOLVIMENTO.
+    is_dev = config_name == "development"
+    if app.config.get("DEBUG") and not is_dev:
+        raise RuntimeError(
+            "DEBUG ligado fora de 'development' — recuse-se a subir o debugger "
+            "em produção. Use gunicorn/uvicorn ou FLASK_ENV=development local."
+        )
+
+    host = os.environ.get("HOST", "127.0.0.1")
+    port = int(os.environ.get("PORT", 5000))
     socketio.run(
         app,
-        host="127.0.0.1",
-        port=5000,
-        debug=app.config.get("DEBUG", False),
-        # Necessário para rodar sobre o servidor de dev do Werkzeug em modo
-        # threading (Flask-SocketIO 5.x exige este opt-in fora de produção).
-        allow_unsafe_werkzeug=True,
+        host=host,
+        port=port,
+        debug=is_dev and app.config.get("DEBUG", False),
+        # allow_unsafe_werkzeug só em dev (o servidor de dev do Werkzeug não é
+        # para produção). Em produção, sirva via gunicorn com worker WebSocket.
+        allow_unsafe_werkzeug=is_dev,
     )

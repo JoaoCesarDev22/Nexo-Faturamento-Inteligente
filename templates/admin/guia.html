@@ -41,6 +41,7 @@
                         <a href="{{ url_for('admin.guia_editar', id=t.id) }}" class="btn-ghost btn-sm-x"><i class="bi bi-pencil"></i> Editar</a>
                         <form method="POST" action="{{ url_for('admin.guia_deletar', id=t.id) }}" style="display:inline;"
                               onsubmit="return confirm('Remover este tópico da Base de Conhecimento?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn-ghost is-danger btn-sm-x"><i class="bi bi-trash"></i></button>
                         </form>
                     </td>

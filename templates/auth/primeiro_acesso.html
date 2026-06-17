@@ -13,6 +13,7 @@
     </div>
 
     <form method="POST" action="{{ url_for('auth.primeiro_acesso') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
             <div class="auth-flash-stack" aria-live="polite">

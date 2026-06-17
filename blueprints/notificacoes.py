@@ -9,6 +9,8 @@ A leitura/contagem para o sininho é injetada em todas as páginas pelo
 context processor (ver app.create_app).
 """
 
+from urllib.parse import urlparse
+
 from flask import Blueprint, redirect, url_for, request
 from flask_login import login_required, current_user
 from sqlalchemy import select, update
@@ -24,6 +26,19 @@ def _destino_padrao() -> str:
     return url_for("admin.dashboard") if current_user.is_admin else url_for("cliente.dashboard")
 
 
+def _local_ou_padrao(alvo: str) -> str:
+    """
+    Devolve `alvo` se for um caminho LOCAL seguro; senão, o dashboard padrão.
+    Defesa em profundidade contra open redirect (referrer/link_destino externos),
+    mesmo que hoje esses valores sejam sempre internos (gerados por url_for).
+    """
+    if alvo:
+        p = urlparse(alvo)
+        if not p.scheme and not p.netloc and alvo.startswith("/") and not alvo.startswith(("//", "/\\")):
+            return alvo
+    return _destino_padrao()
+
+
 @notificacoes_bp.route("/marcar-lidas", methods=["POST"])
 @login_required
 def marcar_lidas():
@@ -33,8 +48,9 @@ def marcar_lidas():
         .values(lida=True)
     )
     db.session.commit()
-    # Volta para a página de origem quando possível (UX do dropdown).
-    return redirect(request.referrer or _destino_padrao())
+    # Volta para a página de origem quando possível (UX do dropdown), validando
+    # que o referrer é local.
+    return redirect(_local_ou_padrao(request.referrer))
 
 
 @notificacoes_bp.route("/<int:id_notificacao>/abrir")
@@ -47,4 +63,4 @@ def abrir(id_notificacao):
     if not notif.lida:
         notif.lida = True
         db.session.commit()
-    return redirect(notif.link_destino or _destino_padrao())
+    return redirect(_local_ou_padrao(notif.link_destino))

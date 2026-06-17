@@ -20,6 +20,7 @@ from etl_processor import processar_arquivos_analise
 from notifications import notificar_clientes_empresa
 from emails import email_analise_publicada, email_ticket_resolvido, email_boas_vindas
 from sqlalchemy.exc import IntegrityError
+import storage
 
 # Categorias de ticket (token persistido -> rótulo exibido) — espelha cliente.py.
 CATEGORIAS_TICKET = {
@@ -277,7 +278,8 @@ def analise_nova():
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            flash(f"Não foi possível criar a análise: {e.orig if e.orig else e}", "danger")
+            current_app.logger.warning("Falha ao criar análise: %s", e.orig if e.orig else e)
+            flash("Não foi possível criar a análise (dados inválidos ou duplicados). Revise e tente novamente.", "danger")
             return redirect(url_for("admin.analise_nova"))
 
         flash(
@@ -357,8 +359,8 @@ def empresa_nova():
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            msg = str(e.orig) if e.orig else str(e)
-            flash(f"Não foi possível salvar (CNPJ ou e-mail já cadastrados, ou FK inválida): {msg}", "danger")
+            current_app.logger.warning("Falha ao cadastrar empresa/usuário: %s", e.orig if e.orig else e)
+            flash("Não foi possível salvar: CNPJ ou e-mail já cadastrados (ou dados inválidos).", "danger")
             return redirect(url_for("admin.empresa_nova"))
 
         # Insert confirmado → e-mail de boas-vindas com LINK SEGURO de definição
@@ -417,7 +419,8 @@ def empresa_editar(id_empresa):
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            flash(f"Falha ao salvar alterações: {e.orig if e.orig else e}", "danger")
+            current_app.logger.warning("Falha ao editar empresa %s: %s", id_empresa, e.orig if e.orig else e)
+            flash("Não foi possível salvar as alterações (dados inválidos ou duplicados).", "danger")
             return redirect(url_for("admin.empresa_editar", id_empresa=id_empresa))
 
         flash("Empresa atualizada com sucesso.", "success")
@@ -456,7 +459,8 @@ def empresa_excluir(id_empresa):
         db.session.commit()
     except IntegrityError as e:
         db.session.rollback()
-        flash(f"Não foi possível mover '{nome_emp}' para a lixeira: {e.orig if e.orig else e}", "danger")
+        current_app.logger.warning("Falha ao mover empresa %s para a lixeira: %s", id_empresa, e.orig if e.orig else e)
+        flash(f"Não foi possível mover '{nome_emp}' para a lixeira. Tente novamente.", "danger")
         return redirect(url_for("admin.empresas"))
 
     flash(f"Cliente '{nome_emp}' movido para a lixeira com sucesso.", "success")
@@ -498,7 +502,8 @@ def empresa_restaurar(id_empresa):
         db.session.commit()
     except IntegrityError as e:
         db.session.rollback()
-        flash(f"Não foi possível restaurar '{nome_emp}': {e.orig if e.orig else e}", "danger")
+        current_app.logger.warning("Falha ao restaurar empresa %s: %s", id_empresa, e.orig if e.orig else e)
+        flash(f"Não foi possível restaurar '{nome_emp}'. Tente novamente.", "danger")
         return redirect(url_for("admin.lixeira"))
 
     flash(f"Cliente '{nome_emp}' restaurado com sucesso.", "success")
@@ -547,12 +552,7 @@ def empresa_excluir_permanente(id_empresa):
                 select(UploadRelatorio).where(UploadRelatorio.id_analise == analise.id_analise)
             ).scalars().all()
             for up in uploads:
-                try:
-                    caminho = _resolver_caminho(up)
-                    if caminho and os.path.exists(caminho):
-                        os.remove(caminho)
-                except OSError:
-                    pass  # remoção física é best-effort; o registro segue sendo deletado
+                storage.remover(up.caminho_arquivo)  # best-effort (ver storage.py)
                 db.session.delete(up)
             if analise.indicador is not None:
                 db.session.delete(analise.indicador)
@@ -590,8 +590,7 @@ def empresa_excluir_permanente(id_empresa):
     except IntegrityError as e:
         db.session.rollback()
         flash(
-            f"Não foi possível excluir permanentemente '{nome_emp}': ainda há dados vinculados. "
-            f"Detalhe: {e.orig if e.orig else e}",
+            f"Não foi possível excluir permanentemente '{nome_emp}': ainda há dados vinculados.",
             "danger",
         )
         current_app.logger.warning("Falha no hard delete da empresa %s: %s", id_empresa, e.orig if e.orig else e)
@@ -612,15 +611,13 @@ def _buscar_upload(id_analise: int, tipo: str):
 
 
 def _resolver_caminho(upload: UploadRelatorio) -> str:
-    """Caminho absoluto do arquivo salvo. Usa caminho_arquivo; relativiza ao UPLOAD_FOLDER se preciso."""
-    caminho = upload.caminho_arquivo
-    if not os.path.isabs(caminho) and not os.path.exists(caminho):
-        caminho = os.path.join(current_app.config["UPLOAD_FOLDER"], os.path.basename(caminho))
-    return caminho
+    """Caminho absoluto do arquivo salvo. Delega à camada de storage (ponto
+    único para futura migração a object storage — ver storage.py)."""
+    return storage.resolver(upload.caminho_arquivo)
 
 
-# VULNERABILIDADE CORRIGIDA: Removido o método "GET". 
-# Agora a rota aceita exclusivamente submissões via POST protegidas pelo sistema.
+# GET exibe a página de upload; POST recebe o arquivo. As submissões são
+# protegidas por CSRF (token no form) e restritas a ADMIN (@admin_required).
 @admin_bp.route("/analise/<int:id_analise>/upload", methods=["GET", "POST"])
 @admin_required
 def analise_upload(id_analise):
@@ -665,35 +662,27 @@ def analise_upload(id_analise):
             return redirect(url_for("admin.analise_upload", id_analise=id_analise))
         sha = hashlib.sha256(conteudo).hexdigest()
 
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        upload_folder.mkdir(parents=True, exist_ok=True)
         nome_final = f"analise_{id_analise}_{tipo}_{sha[:8]}.{ext}"
-        caminho_final = upload_folder / nome_final
 
         # UNIQUE(id_analise, tipo_relatorio) — re-upload substitui o anterior.
-        # ATENÇÃO: só removemos o arquivo físico antigo se o caminho NOVO for diferente,
-        # senão um re-upload com o mesmo conteúdo (mesmo SHA → mesmo nome) deletaria
-        # o arquivo que acabamos de gravar.
+        # ATENÇÃO: só removemos o arquivo físico antigo se a referência NOVA for
+        # diferente, senão um re-upload idêntico (mesmo SHA → mesmo nome) apagaria
+        # o arquivo recém-gravado.
         existente = _buscar_upload(id_analise, tipo)
-        if existente and existente.caminho_arquivo and existente.caminho_arquivo != str(caminho_final):
-            try:
-                if os.path.exists(existente.caminho_arquivo):
-                    os.remove(existente.caminho_arquivo)
-            except OSError:
-                pass  # remoção física é best-effort; o registro novo é o que vale
+        # Grava o novo via camada de storage (ponto único — ver storage.py).
+        caminho_final = storage.salvar(conteudo, nome_final)
+        if existente and existente.caminho_arquivo and existente.caminho_arquivo != caminho_final:
+            storage.remover(existente.caminho_arquivo)
         if existente:
             db.session.delete(existente)
             db.session.flush()
-
-        # Agora escreve o novo arquivo (depois de qualquer remoção física do antigo).
-        caminho_final.write_bytes(conteudo)
 
         db.session.add(UploadRelatorio(
             id_analise=id_analise,
             id_usuario_admin=current_user.id_usuario,
             tipo_relatorio=tipo,
             nome_arquivo_original=nome_seguro,
-            caminho_arquivo=str(caminho_final),
+            caminho_arquivo=caminho_final,
             extensao_arquivo=ext.upper(),
             tamanho_arquivo=len(conteudo),
             hash_arquivo=sha,
@@ -822,17 +811,9 @@ def analise_relatorio(id_analise):
             rel.data_publicacao = agora
             analise.status_analise = "CONCLUIDO"
             analise.data_conclusao = agora
-            # Gatilho: devolutiva publicada → notifica o cliente (sininho + e-mail).
-            ref = f"{analise.mes_referencia:02d}/{analise.ano_referencia}"
-            notificar_clientes_empresa(
-                analise.id_empresa,
-                f"Seu Relatório Estratégico de {ref} já está disponível! Clique para ver.",
-                url_for("cliente.analise", id_analise=analise.id_analise),
-            )
-            email_analise_publicada(
-                analise,
-                url_for("cliente.analise", id_analise=analise.id_analise, _external=True),
-            )
+            # NÃO disparamos notificação/e-mail aqui: efeitos colaterais externos
+            # (WebSocket + SMTP) só acontecem APÓS o commit ter sucesso, para não
+            # avisar o cliente de uma publicação que pode sofrer rollback.
 
         elif acao == "despublicar":
             if analise.status_analise != "CONCLUIDO":
@@ -856,8 +837,29 @@ def analise_relatorio(id_analise):
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            flash(f"Falha ao salvar o relatório: {e.orig if e.orig else e}", "danger")
+            current_app.logger.warning("Falha ao salvar relatório da análise %s: %s", id_analise, e.orig if e.orig else e)
+            flash("Não foi possível salvar o relatório. Verifique os dados e tente novamente.", "danger")
             return redirect(url_for("admin.analise_relatorio", id_analise=id_analise))
+
+        # Dispatch-after-commit: só agora que a transação foi confirmada disparamos
+        # os efeitos colaterais externos (sininho em tempo real + e-mail ao cliente).
+        if acao == "publicar":
+            ref = f"{analise.mes_referencia:02d}/{analise.ano_referencia}"
+            link_interno = url_for("cliente.analise", id_analise=analise.id_analise)
+            try:
+                notificar_clientes_empresa(
+                    analise.id_empresa,
+                    f"Seu Relatório Estratégico de {ref} já está disponível! Clique para ver.",
+                    link_interno,
+                )
+                db.session.commit()  # persiste as notificações criadas
+                email_analise_publicada(
+                    analise,
+                    url_for("cliente.analise", id_analise=analise.id_analise, _external=True),
+                )
+            except Exception as e:  # noqa: BLE001 — efeito colateral nunca derruba o fluxo
+                db.session.rollback()
+                current_app.logger.warning("Falha ao notificar publicação da análise %s: %s", id_analise, e)
 
         msg_acao = {"rascunho": "Rascunho salvo.", "publicar": "Devolutiva publicada para o cliente.",
                     "despublicar": "Devolutiva despublicada (análise voltou a EM_ANALISE)."}[acao]
@@ -870,7 +872,10 @@ def analise_relatorio(id_analise):
 @admin_bp.route("/analise/<int:id_analise>/processar", methods=["POST"])
 @admin_required
 def processar_analise(id_analise):
-    analise = db.session.get(Analise, id_analise)
+    # Lock pessimista na linha (SELECT ... FOR UPDATE no Postgres; no-op no SQLite):
+    # serializa cliques/abas concorrentes na MESMA análise, evitando duas execuções
+    # simultâneas do ETL gravando indicadores/Curva ABC em paralelo (race condition).
+    analise = db.session.get(Analise, id_analise, with_for_update=True)
     if not analise:
         flash("Análise não encontrada.", "danger")
         return redirect(url_for("admin.dashboard"))
@@ -907,14 +912,21 @@ def processar_analise(id_analise):
         upload_compras.status_processamento = "PROCESSADO"
         upload_compras.data_processamento = agora
         upload_compras.mensagem_erro = None
-        # Gatilho: avisa o cliente que os relatórios foram homologados/processados.
-        ref = f"{analise.mes_referencia:02d}/{analise.ano_referencia}"
-        notificar_clientes_empresa(
-            analise.id_empresa,
-            f"Recebemos e processamos seus relatórios de {ref}. Sua devolutiva está em preparação.",
-            url_for("cliente.dashboard"),
-        )
         db.session.commit()
+
+        # Dispatch-after-commit: notifica o cliente só após o ETL ter sido
+        # persistido com sucesso (sininho); nunca derruba o resultado.
+        ref = f"{analise.mes_referencia:02d}/{analise.ano_referencia}"
+        try:
+            notificar_clientes_empresa(
+                analise.id_empresa,
+                f"Recebemos e processamos seus relatórios de {ref}. Sua devolutiva está em preparação.",
+                url_for("cliente.dashboard"),
+            )
+            db.session.commit()
+        except Exception as e:  # noqa: BLE001
+            db.session.rollback()
+            current_app.logger.warning("Falha ao notificar processamento da análise %s: %s", id_analise, e)
         return render_template("admin/processar_resultado.html", analise=analise, resultado=resultado)
 
     # 7. Erro: descarta qualquer escrita parcial, marca uploads como ERRO e
@@ -967,12 +979,7 @@ def analise_deletar(id_analise):
         select(UploadRelatorio).where(UploadRelatorio.id_analise == id_analise)
     ).scalars().all()
     for up in uploads:
-        try:
-            caminho = _resolver_caminho(up)
-            if caminho and os.path.exists(caminho):
-                os.remove(caminho)
-        except OSError:
-            pass  # remoção física é best-effort; o registro segue sendo deletado
+        storage.remover(up.caminho_arquivo)  # best-effort (ver storage.py)
         db.session.delete(up)
 
     # 2) IndicadorAnalise (1:1) — pode não existir se o ETL nunca rodou
@@ -990,8 +997,9 @@ def analise_deletar(id_analise):
         db.session.commit()
     except IntegrityError as e:
         db.session.rollback()
+        current_app.logger.warning("Falha ao excluir análise %s: %s", id_analise, e.orig if e.orig else e)
         flash(
-            f"Não foi possível excluir a análise {id_str}: {e.orig if e.orig else e}",
+            f"Não foi possível excluir a análise {id_str}: ainda há dados vinculados.",
             "danger",
         )
         return redirect(url_for("admin.analises"))

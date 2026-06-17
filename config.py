@@ -85,6 +85,28 @@ class Config:
     SESSION_COOKIE_SAMESITE = "Lax"         # mitiga CSRF em navegação cross-site
     # SESSION_COOKIE_SECURE é ligado só em produção (HTTPS) — ver ProductionConfig.
 
+    # === CSRF (Flask-WTF) ===
+    # Token sem expiração por tempo (a sessão já é curta e morre ao fechar o
+    # navegador); evita falsos "token expirado" em formulários longos.
+    WTF_CSRF_TIME_LIMIT = None
+
+    # === Rate limiting (Flask-Limiter) ===
+    # Storage em memória para dev/instância única. Em produção multi-instância,
+    # aponte RATELIMIT_STORAGE_URI para um Redis compartilhado.
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_HEADERS_ENABLED = True
+
+    # === Tempo real (Socket.IO) ===
+    # Origens permitidas no handshake do WebSocket. NUNCA "*" com cookie de
+    # sessão (evita Cross-Site WebSocket Hijacking). Lista separada por vírgula
+    # no .env; default cobre o dev local.
+    SOCKETIO_CORS_ORIGINS = [
+        o.strip() for o in os.environ.get(
+            "SOCKETIO_CORS_ORIGINS",
+            "http://127.0.0.1:5000,http://localhost:5000",
+        ).split(",") if o.strip()
+    ]
+
     # === SQLAlchemy ===
     SQLALCHEMY_DATABASE_URI = _resolve_database_uri()
     # URI direta (5432) para Alembic/Flask-Migrate. A app usa a pooled (6543);
@@ -93,6 +115,10 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     # Mostra SQL gerado no console — útil em dev, ruim em prod.
     SQLALCHEMY_ECHO = False
+    # Robustez com o PgBouncer do Supabase (porta 6543, transaction pooling): o
+    # pooler pode fechar conexões ociosas, então validamos a conexão antes de
+    # usar (pre_ping) e reciclamos antes do timeout típico. Inócuo para SQLite.
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True, "pool_recycle": 280}
 
     # === Admin Master (seed) ===
     ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@nexo.com.br")

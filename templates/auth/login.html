@@ -22,6 +22,7 @@
        Usuario.role. Não há mais toggle de perfil — o seletor visual "Time Nexo /
        Cliente" era redundante (o role já é consultado no banco). #}
     <form method="POST" action="{{ url_for('auth.login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 
         {# Flashes locais (erro de credencial, sessão terminada etc.). #}
         {% with messages = get_flashed_messages(with_categories=true) %}

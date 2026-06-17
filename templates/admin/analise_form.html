@@ -26,6 +26,7 @@
 </div>
 {% else %}
 <form method="POST" action="{{ url_for('admin.analise_nova') }}" class="relatorio-doc" style="max-width:880px;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="nexo-card mb-4">
         <div class="nexo-card-head">
             <div>

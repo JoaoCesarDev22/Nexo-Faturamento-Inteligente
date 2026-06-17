@@ -41,6 +41,7 @@ from models import (
 from insights import gerar_semaforos
 from notifications import notificar_admins
 from pdf_export import gerar_pdf_analise
+import storage
 
 cliente_bp = Blueprint("cliente", __name__)
 
@@ -365,32 +366,25 @@ def upload():
             return redirect(url_for("cliente.upload"))
         sha = hashlib.sha256(conteudo).hexdigest()
 
-        upload_folder = Path(current_app.config["UPLOAD_FOLDER"])
-        upload_folder.mkdir(parents=True, exist_ok=True)
         nome_final = f"analise_{id_analise}_{tipo}_{sha[:8]}.{ext}"
-        caminho_final = upload_folder / nome_final
 
         # UNIQUE(id_analise, tipo) — re-upload substitui o anterior (mesmo cuidado
-        # do fluxo admin: só remove o arquivo físico antigo se o caminho mudou).
+        # do fluxo admin: só remove o arquivo físico antigo se a referência mudou).
         existente = _buscar_upload(id_analise, tipo)
-        if existente and existente.caminho_arquivo and existente.caminho_arquivo != str(caminho_final):
-            try:
-                if os.path.exists(existente.caminho_arquivo):
-                    os.remove(existente.caminho_arquivo)
-            except OSError:
-                pass
+        # Grava via camada de storage (ponto único — ver storage.py).
+        caminho_final = storage.salvar(conteudo, nome_final)
+        if existente and existente.caminho_arquivo and existente.caminho_arquivo != caminho_final:
+            storage.remover(existente.caminho_arquivo)
         if existente:
             db.session.delete(existente)
             db.session.flush()
-
-        caminho_final.write_bytes(conteudo)
 
         db.session.add(UploadRelatorio(
             id_analise=id_analise,
             id_usuario_admin=None,  # enviado pelo cliente → aguardando validação
             tipo_relatorio=tipo,
             nome_arquivo_original=nome_seguro,
-            caminho_arquivo=str(caminho_final),
+            caminho_arquivo=caminho_final,
             extensao_arquivo=ext.upper(),
             tamanho_arquivo=len(conteudo),
             hash_arquivo=sha,

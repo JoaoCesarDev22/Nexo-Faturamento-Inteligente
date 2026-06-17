@@ -29,6 +29,7 @@
         {% endif %}
 
         <form method="POST" action="{{ url_for('cliente.ticket_detalhe', id_chamado=chamado.id_chamado) }}" class="chat-reply mt-3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <textarea name="mensagem" class="form-control nexo-input" rows="3" placeholder="Escreva sua mensagem…" required></textarea>
             <div class="d-flex justify-content-end mt-2">
                 <button type="submit" class="btn-nexo"><i class="bi bi-send"></i> Enviar</button>

@@ -20,6 +20,7 @@
     <div class="nexo-card-head"><div><h2>Abrir novo chamado</h2><p class="sub">Descreva sua dúvida ou problema</p></div></div>
     <div class="nexo-card-body">
         <form method="POST" action="{{ url_for('cliente.tickets') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <div class="row g-3">
                 <div class="col-12 col-md-8">
                     <label class="kpi-label">Assunto</label>

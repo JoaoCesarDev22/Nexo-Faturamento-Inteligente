@@ -135,6 +135,7 @@
                     <td class="text-end">
                         {% if h.pronto %}
                         <form method="POST" action="{{ url_for('admin.processar_analise', id_analise=h.analise.id_analise) }}" style="display:inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn-nexo btn-sm-x"><i class="bi bi-cpu"></i> Homologar e Executar Motor ETL</button>
                         </form>
                         {% else %}

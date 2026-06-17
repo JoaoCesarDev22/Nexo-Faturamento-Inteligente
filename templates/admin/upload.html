@@ -54,6 +54,7 @@
             {% endif %}
 
             <form method="POST" action="{{ url_for('admin.analise_upload', id_analise=analise.id_analise) }}" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="tipo_relatorio" value="{{ slot.tipo }}">
                 <label class="dropzone" data-dz>
                     <div class="dz-icon"><i class="bi bi-cloud-arrow-up"></i></div>
@@ -82,6 +83,7 @@
             </p>
         </div>
         <form method="POST" action="{{ url_for('admin.processar_analise', id_analise=analise.id_analise) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn-nexo" {{ '' if pode_processar else 'disabled' }}>
                 <i class="bi bi-cpu"></i> Processar agora
             </button>

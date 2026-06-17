@@ -16,6 +16,7 @@
 
 <form method="POST" enctype="multipart/form-data"
       action="{{ url_for('admin.guia_editar', id=topico.id) if topico else url_for('admin.guia_novo') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="nexo-card mb-4">
         <div class="nexo-card-body">
             <div class="row g-3">

@@ -42,6 +42,7 @@
                     <td class="text-end t-mut" style="white-space:nowrap;">
                         {# Restaurar: ação reversível e segura → POST direto (botão verde). #}
                         <form method="POST" action="{{ url_for('admin.empresa_restaurar', id_empresa=e.id_empresa) }}" class="d-inline m-0">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <button type="submit" class="btn btn-success btn-sm" title="Restaurar cliente">
                                 <i class="bi bi-arrow-counterclockwise"></i> Restaurar
                             </button>
@@ -107,6 +108,7 @@
                     Cancelar
                 </button>
                 <form method="POST" action="" id="confirmPurgeForm" class="d-inline m-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">
                         <i class="bi bi-trash3"></i> Sim, excluir definitivamente
                     </button>

@@ -155,6 +155,7 @@
                     Cancelar
                 </button>
                 <form method="POST" action="" id="confirmDeleteForm" class="d-inline m-0">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="btn btn-danger btn-sm">
                         <i class="bi bi-trash"></i> Excluir definitivamente
                     </button>

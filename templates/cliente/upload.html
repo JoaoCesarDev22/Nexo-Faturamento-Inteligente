@@ -58,6 +58,7 @@
                     </div>
                     <p class="field-hint">{{ slot.desc }} · CSV ou XLSX</p>
                     <form method="POST" action="{{ url_for('cliente.upload') }}" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="id_analise" value="{{ a.id_analise }}">
                         <input type="hidden" name="tipo_relatorio" value="{{ slot.tipo }}">
                         <label class="dropzone" data-dz>
