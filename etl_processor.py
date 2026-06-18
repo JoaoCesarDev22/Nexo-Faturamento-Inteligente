@@ -38,6 +38,8 @@ Assinatura imutável:
 
 import os
 import re
+import csv
+import io
 import logging
 import unicodedata
 from datetime import datetime, timezone
@@ -71,7 +73,7 @@ class ETLValidationError(Exception):
 
 # Encodings e separadores tentados em sequência para arquivos texto/CSV
 ENCODINGS = ("utf-8-sig", "cp1252", "utf-8", "latin1")
-SEPARADORES = (";", ",", "\t")
+SEPARADORES = (";", ",", "\t", "|")
 
 
 # =====================================================================
@@ -172,8 +174,22 @@ def _converter_serie(serie: pd.Series) -> pd.Series:
 # =====================================================================
 # 3) Leitura defensiva (.xlsx / .csv) sem assumir cabeçalho
 # =====================================================================
+def _trim_vazios(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Remove linhas e colunas COMPLETAMENTE vazias da matriz crua. Resolve dois
+    tipos de "sujeira" comuns em exportações de PDV sem mascarar dado real:
+      - linhas em branco decorativas no topo (empurram o cabeçalho para baixo);
+      - colunas vazias à esquerda/entre dados (deslocamento de colunas).
+    `how="all"` só descarta o que é integralmente nulo — nenhum dado é perdido.
+    """
+    if df is None or df.empty:
+        return df
+    limpo = df.dropna(axis=0, how="all").dropna(axis=1, how="all")
+    return limpo.reset_index(drop=True) if not limpo.empty else df
+
+
 def _ler_bruto(caminho_arquivo: str) -> pd.DataFrame:
-    """Lê o arquivo como matriz crua (header=None, dtype=str)."""
+    """Lê o arquivo como matriz crua (header=None, dtype=str) e apara vazios."""
     if not os.path.exists(caminho_arquivo):
         raise ETLValidationError(f"Arquivo não encontrado: {caminho_arquivo}")
 
@@ -182,11 +198,18 @@ def _ler_bruto(caminho_arquivo: str) -> pd.DataFrame:
 
     if ext == ".xlsx":
         try:
-            return pd.read_excel(caminho_arquivo, dtype=str, header=None, engine="openpyxl")
+            # Lê TODAS as abas e escolhe a com mais células preenchidas — ignora
+            # abas de capa/resumo/vazias e acha a planilha de dados de verdade.
+            abas = pd.read_excel(caminho_arquivo, dtype=str, header=None,
+                                 engine="openpyxl", sheet_name=None)
         except Exception as e:
             raise ETLValidationError(
                 f"Falha ao ler .xlsx '{nome}' (openpyxl). Erro: {e}"
             )
+        melhor = max(abas.values(), key=lambda d: int(d.notna().to_numpy().sum()), default=None)
+        if melhor is None or melhor.empty:
+            raise ETLValidationError(f"O arquivo .xlsx '{nome}' não tem dados em nenhuma aba.")
+        return _trim_vazios(melhor)
 
     if ext == ".xls":
         try:
@@ -197,38 +220,53 @@ def _ler_bruto(caminho_arquivo: str) -> pd.DataFrame:
                 f"Converta '{nome}' para .xlsx ou .csv."
             )
         try:
-            return pd.read_excel(caminho_arquivo, dtype=str, header=None, engine="xlrd")
+            return _trim_vazios(pd.read_excel(caminho_arquivo, dtype=str, header=None, engine="xlrd"))
         except Exception as e:
             raise ETLValidationError(f"Falha ao ler .xls '{nome}': {e}")
 
-    # CSV/TXT/extensão desconhecida: fallback de encoding + separador
+    # CSV/TXT/extensão desconhecida: leitura TOLERANTE A LINHAS IRREGULARES.
+    # Usamos o módulo csv (respeita aspas) e montamos o DataFrame manualmente,
+    # preenchendo linhas mais curtas com None. Assim, linhas decorativas no topo
+    # (com menos colunas que os dados) NÃO quebram o parser — o que aconteceria
+    # com pd.read_csv, que fixa o nº de colunas pela 1ª linha lida.
     ultimo_erro = None
-    for enc in ENCODINGS:
+
+    def _montar(texto: str):
+        """Escolhe o separador que maximiza colunas e devolve um DF retangular."""
+        melhor_linhas, melhor_ncols = None, 0
         for sep in SEPARADORES:
             try:
-                df = pd.read_csv(
-                    caminho_arquivo, dtype=str, header=None,
-                    sep=sep, encoding=enc, engine="python",
-                )
-                if df.shape[1] > 1:
-                    return df
-            except Exception as e:
-                ultimo_erro = e
+                linhas = list(csv.reader(io.StringIO(texto), delimiter=sep))
+            except Exception:
+                continue
+            ncols = max((len(l) for l in linhas), default=0)
+            if ncols > melhor_ncols:
+                melhor_linhas, melhor_ncols = linhas, ncols
+        if melhor_ncols <= 1:
+            return None
+        retang = [l + [None] * (melhor_ncols - len(l)) for l in melhor_linhas]
+        return _trim_vazios(pd.DataFrame(retang, dtype=object))
 
-    # Último recurso: ignora bytes inválidos
-    for sep in SEPARADORES:
+    for enc in ENCODINGS:
         try:
-            logger.warning(
-                "Leitura de '%s' com encoding_errors='ignore' (último recurso). Sep=%r", nome, sep
-            )
-            df = pd.read_csv(
-                caminho_arquivo, dtype=str, header=None, sep=sep,
-                encoding="utf-8", engine="python", encoding_errors="ignore",
-            )
-            if df.shape[1] > 1:
-                return df
-        except Exception as e:
+            with open(caminho_arquivo, "r", encoding=enc, newline="") as fh:
+                texto = fh.read()
+        except (UnicodeDecodeError, OSError) as e:
             ultimo_erro = e
+            continue
+        df = _montar(texto)
+        if df is not None:
+            return df
+
+    # Último recurso: ignora bytes inválidos.
+    try:
+        logger.warning("Leitura de '%s' com errors='ignore' (último recurso).", nome)
+        with open(caminho_arquivo, "r", encoding="utf-8", errors="ignore", newline="") as fh:
+            df = _montar(fh.read())
+        if df is not None:
+            return df
+    except Exception as e:
+        ultimo_erro = e
 
     raise ETLValidationError(
         "Não foi possível ler o arquivo.\n"
@@ -250,33 +288,58 @@ def _ler_bruto(caminho_arquivo: str) -> pd.DataFrame:
 # (sem acento, minúsculas, sem pontuação, sem espaços extras).
 
 ALIAS_VENDAS = {
-    "codigo":      ["codigo", "cod produto", "cod barras", "cod "],
-    "produto":     ["nome do produto", "descricao do produto", "produto", "descricao"],
+    # codigo PRECISA vir antes de produto: assim a coluna "id_produto" (ex.: P001)
+    # é reivindicada como código e NÃO rouba o canônico 'produto' do nome real
+    # ("descricao_produto"/"nome_produto"). A ordem do dicionário é a inteligência.
+    "codigo":      ["id produto", "id do produto", "codigo produto", "codigo",
+                    "cod produto", "cod barras", "ean", "sku", "ref", "cod "],
+    "produto":     ["nome do produto", "descricao do produto", "descricao produto",
+                    "nome produto", "produto", "mercadoria", "descricao do item", "descricao"],
     # estoque ANTES de quantidade — "Qtde Estoque" não pode cair em qtd
     "estoque":     ["estoque atual", "saldo estoque", "saldo atual", "estoque"],
     # custo ANTES de venda — só por consistência
     "valor_custo": ["total custo", "vr custo", "vlr custo", "valor custo",
                     "custo total", "custo"],
-    "valor_venda": ["total venda", "total vendas", "vr venda", "vlr venda",
-                    "valor total venda", "valor venda"],
-    "quantidade":  ["qtde vend", "qtde vendida", "quantidade vendida",
-                    "qtd vend", "qtde", "quantidade", "qtd"],
+    # 'faturamento' é o TOTAL por linha (qtd x preço) → é o valor de venda real.
+    # Mantemos 'preco/preco_unitario' FORA daqui de propósito: somar preço
+    # unitário inflaria o faturamento. Casamos o total, nunca o unitário.
+    "valor_venda": ["faturamento", "arrecadado", "total venda", "total vendas",
+                    "vr venda", "vlr venda", "valor total venda", "total liquido",
+                    "valor venda", "vr total", "valor total"],
+    # preço UNITÁRIO (vem DEPOIS de valor_venda: o total explícito sempre vence).
+    # Só é usado para DERIVAR o total (qtd x unitário) quando não há coluna de total.
+    "preco_unitario": ["preco unitario", "preco unit", "valor unitario", "vlr unitario",
+                       "preco venda", "preco"],
+    "quantidade":  ["qtde vend", "qtde vendida", "quantidade vendida", "qtd vendida",
+                    "qtde total", "qtd vend", "qtde", "quantidade", "qtd"],
     # 'lucro' é DETECTADO defensivamente (reservar a coluna) e DESCARTADO
     # no cálculo. NEXO/PI2 NÃO usa lucro/CMV como KPI — terminologia oficial.
     "lucro":       ["lucro"],
 }
 
 ALIAS_COMPRAS = {
-    "data":           ["data emissao", "data nf", "data compra", "data"],
-    "fornecedor":     ["razao social fornecedor", "nome fornecedor", "fornecedor"],
+    # codigo no topo, mesmo motivo do dicionário de vendas (absorve "id_produto").
+    "codigo":         ["id produto", "id do produto", "codigo produto", "codigo",
+                       "cod produto", "cod barras"],
+    "data":           ["data emissao", "data nf", "data entrada", "data compra", "data"],
+    "fornecedor":     ["razao social fornecedor", "nome fornecedor", "fornecedor",
+                       "razao social", "emitente"],
     # produtos_total ANTES de valor_nf — "Vr Total Produtos" é mais específico
     "produtos_total": ["total produtos", "vr total produtos", "vr produtos",
-                       "valor produtos"],
-    "valor_nf":       ["valor nf", "vr total", "total nf", "valor total",
-                       "valor nota", "vr nota"],
-    # Colunas item-a-item (raras em relatórios NF-level reais):
-    "produto":        ["nome do produto", "descricao", "produto"],
-    "qtde_comprada":  ["qtde comprada", "quantidade comprada", "qtde compra", "qtde"],
+                       "total mercadorias", "valor produtos"],
+    # valor da compra a nível de NF OU de item: 'total_compra' (C1) e
+    # 'total_custo' (C4 item-level) são o total da linha — nunca o unitário.
+    "valor_nf":       ["valor nf", "total compra", "total custo", "vr total", "total nf",
+                       "total da nota", "valor total", "valor nota", "vr nf", "vr nota"],
+    # custo UNITÁRIO (depois de valor_nf: o total explícito sempre vence). Usado
+    # para DERIVAR o total (qtd x unitário) quando não há coluna de total.
+    "custo_unitario": ["custo unitario", "custo unit", "vr unitario", "vlr unitario",
+                       "preco unitario", "valor unitario"],
+    # Colunas item-a-item (relatórios de compra por produto, não por NF):
+    "produto":        ["nome do produto", "descricao do produto", "descricao produto",
+                       "nome produto", "descricao", "mercadoria", "produto"],
+    "qtde_comprada":  ["qtde comprada", "quantidade comprada", "qtd comprada",
+                       "qtde compra", "qtd compra", "qtde"],
 }
 
 
@@ -303,7 +366,7 @@ def _mapear_cabecalho(linha_norm: list, aliases: dict) -> dict:
 
 
 def _detectar_cabecalho(df_bruto: pd.DataFrame, aliases: dict, valida_fn,
-                        janela: int = 60):
+                        janela: int = 100):
     """
     Localiza a linha de cabeçalho na janela inicial:
       1) Cabeçalho de UMA linha — escolhe a que mapeia MAIS canônicos
@@ -311,17 +374,23 @@ def _detectar_cabecalho(df_bruto: pd.DataFrame, aliases: dict, valida_fn,
       2) Cabeçalho COMPOSTO (2 linhas adjacentes concatenadas) — fallback
          para PDVs que quebram títulos em duas linhas.
     Retorna (idx_cabecalho, mapa_canonico, linhas_cabecalho).
+
+    Em caso de falha, levanta ETLValidationError com DIAGNÓSTICO acionável
+    (quais colunas foram reconhecidas) — nunca fabrica colunas: um relatório
+    sem as colunas essenciais não vira KPI inventado (integridade do dado).
     """
     limite = min(janela, len(df_bruto))
     melhor = None
+    melhor_parcial: dict = {}   # melhor mapeamento visto, mesmo sem passar na validação
 
     # 1) cabeçalho de 1 linha
     for i in range(limite):
         linha = [_norm_chave(v) for v in df_bruto.iloc[i].tolist()]
         mapa = _mapear_cabecalho(linha, aliases)
-        if valida_fn(mapa):
-            if melhor is None or len(mapa) > len(melhor[1]):
-                melhor = (i, mapa, 1)
+        if len(mapa) > len(melhor_parcial):
+            melhor_parcial = mapa
+        if valida_fn(mapa) and (melhor is None or len(mapa) > len(melhor[1])):
+            melhor = (i, mapa, 1)
     if melhor is not None:
         return melhor
 
@@ -332,17 +401,20 @@ def _detectar_cabecalho(df_bruto: pd.DataFrame, aliases: dict, valida_fn,
         # zip por menor comprimento — colunas extras ficam de fora
         comb = [(a + " " + b).strip() for a, b in zip(l1, l2)]
         mapa = _mapear_cabecalho(comb, aliases)
-        if valida_fn(mapa):
-            if melhor is None or len(mapa) > len(melhor[1]):
-                melhor = (i, mapa, 2)
+        if len(mapa) > len(melhor_parcial):
+            melhor_parcial = mapa
+        if valida_fn(mapa) and (melhor is None or len(mapa) > len(melhor[1])):
+            melhor = (i, mapa, 2)
+    if melhor is not None:
+        return melhor
 
-    if melhor is None:
-        raise ETLValidationError(
-            "Não foi possível localizar a linha de cabeçalho nas "
-            f"primeiras {limite} linhas. Verifique se o relatório foi exportado "
-            "em formato tabular do PDV (com cabeçalho identificável)."
-        )
-    return melhor
+    reconhecidas = ", ".join(sorted(melhor_parcial.keys())) if melhor_parcial else "nenhuma"
+    raise ETLValidationError(
+        f"Não consegui identificar as colunas essenciais nas primeiras {limite} "
+        f"linhas do relatório. Colunas reconhecidas: {reconhecidas}. "
+        "Confirme que o arquivo é o relatório tabular do PDV — VENDAS precisa de "
+        "produto, quantidade e valor; COMPRAS precisa de fornecedor e valor — e reenvie."
+    )
 
 
 # =====================================================================
@@ -398,13 +470,21 @@ def _filtrar_linhas_validas(df: pd.DataFrame, chave: str) -> pd.DataFrame:
 # 6) Carregadores específicos (Vendas / Compras)
 # =====================================================================
 def _validar_vendas(mapa: dict) -> bool:
-    return all(k in mapa for k in ("produto", "quantidade", "valor_venda"))
+    # Precisa de produto + quantidade + um valor: total explícito (valor_venda)
+    # OU preço unitário (o total da linha é derivado de qtd x unitário).
+    if not ("produto" in mapa and "quantidade" in mapa):
+        return False
+    return ("valor_venda" in mapa) or ("preco_unitario" in mapa)
 
 
 def _validar_compras(mapa: dict) -> bool:
-    if "fornecedor" not in mapa:
-        return False
-    return "valor_nf" in mapa or "produtos_total" in mapa
+    # Aceita relatório NF-level (chave = fornecedor) ou item-level (chave = produto).
+    # Valor: total explícito (valor_nf/produtos_total) OU custo unitário + quantidade
+    # (o total da linha é derivado de qtd_comprada x custo_unitario).
+    tem_chave = ("fornecedor" in mapa) or ("produto" in mapa)
+    tem_total = ("valor_nf" in mapa) or ("produtos_total" in mapa)
+    tem_derivavel = ("custo_unitario" in mapa) and ("qtde_comprada" in mapa)
+    return tem_chave and (tem_total or tem_derivavel)
 
 
 def carregar_vendas(caminho: str) -> pd.DataFrame:
@@ -419,7 +499,17 @@ def carregar_vendas(caminho: str) -> pd.DataFrame:
 
     # Conversões numéricas — NaN vira 0 (linha sem qtd/valor não impacta KPI)
     df["quantidade"] = _converter_serie(df["quantidade"]).fillna(0.0)
-    df["valor_venda"] = _converter_serie(df["valor_venda"]).fillna(0.0)
+    if "valor_venda" in df.columns:
+        df["valor_venda"] = _converter_serie(df["valor_venda"]).fillna(0.0)
+    elif "preco_unitario" in df.columns:
+        # Sem coluna de total: deriva o faturamento da linha (qtd x preço unitário).
+        # Cálculo honesto a partir de colunas reais — não é dado inventado.
+        df["valor_venda"] = _converter_serie(df["preco_unitario"]).fillna(0.0) * df["quantidade"]
+        logger.info("VENDAS '%s': faturamento derivado de quantidade x preço unitário.", nome)
+    else:
+        raise ETLValidationError(
+            f"Relatório de VENDAS '{nome}' sem coluna de valor (nem total, nem preço unitário)."
+        )
     if "valor_custo" in df.columns:
         df["valor_custo"] = _converter_serie(df["valor_custo"]).fillna(0.0)
     if "estoque" in df.columns:
@@ -453,18 +543,30 @@ def carregar_compras(caminho: str):
 
     idx, mapa, linhas_cab = _detectar_cabecalho(bruto, ALIAS_COMPRAS, _validar_compras)
     df = _construir_df_canonico(bruto, idx, mapa, linhas_cab)
-    df = _filtrar_linhas_validas(df, "fornecedor")
+    # Chave de validade de linha: fornecedor (NF-level) ou, na ausência dele,
+    # produto (item-level) — alinhado ao validador.
+    chave_linha = "fornecedor" if "fornecedor" in df.columns else "produto"
+    df = _filtrar_linhas_validas(df, chave_linha)
 
     if "produtos_total" in df.columns:
         coluna_valor = "produtos_total"
+        df[coluna_valor] = _converter_serie(df[coluna_valor]).fillna(0.0)
     elif "valor_nf" in df.columns:
         coluna_valor = "valor_nf"
+        df[coluna_valor] = _converter_serie(df[coluna_valor]).fillna(0.0)
+    elif "custo_unitario" in df.columns and "qtde_comprada" in df.columns:
+        # Sem coluna de total: deriva o total da linha (qtd x custo unitário).
+        # Cálculo honesto a partir de colunas reais — não é dado inventado.
+        qtd = _converter_serie(df["qtde_comprada"]).fillna(0.0)
+        custo = _converter_serie(df["custo_unitario"]).fillna(0.0)
+        coluna_valor = "valor_total_compra"
+        df[coluna_valor] = qtd * custo
+        logger.info("COMPRAS '%s': total derivado de quantidade x custo unitário.", nome)
     else:
         raise ETLValidationError(
             f"Relatório de COMPRAS '{nome}' sem coluna de valor reconhecida "
-            "('Total Produtos' nem 'Valor NF' encontradas)."
+            "(total de NF/compra/custo, nem custo unitário + quantidade)."
         )
-    df[coluna_valor] = _converter_serie(df[coluna_valor]).fillna(0.0)
     df = df[df[coluna_valor] > 0].reset_index(drop=True)
 
     if "qtde_comprada" in df.columns:

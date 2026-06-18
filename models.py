@@ -209,13 +209,28 @@ class Analise(db.Model):
     empresa = relationship("Empresa", back_populates="analises")
     plano_referencia = relationship("Plano")
     admin_responsavel = relationship("Usuario")
-    uploads = relationship("UploadRelatorio", back_populates="analise")
-    indicador = relationship("IndicadorAnalise", back_populates="analise", uselist=False)
-    relatorio = relationship("RelatorioAnalise", back_populates="analise", uselist=False)
+    # cascade="all, delete-orphan" no nível do ORM: ao deletar uma Analise, o
+    # SQLAlchemy remove automaticamente os filhos (uploads, indicador, relatório
+    # e Curva ABC) na ordem correta — sem precisar de ON DELETE CASCADE no banco
+    # (migration-free) e mantendo a rede de proteção das FKs intacta. Estes
+    # registros não têm sentido sem a análise-mãe (ownership forte).
+    uploads = relationship(
+        "UploadRelatorio", back_populates="analise",
+        cascade="all, delete-orphan",
+    )
+    indicador = relationship(
+        "IndicadorAnalise", back_populates="analise", uselist=False,
+        cascade="all, delete-orphan",
+    )
+    relatorio = relationship(
+        "RelatorioAnalise", back_populates="analise", uselist=False,
+        cascade="all, delete-orphan",
+    )
     curva_abc = relationship(
         "ProdutoCurvaABC",
         back_populates="analise",
         order_by="ProdutoCurvaABC.posicao_ranking",
+        cascade="all, delete-orphan",
     )
 
     __table_args__ = (

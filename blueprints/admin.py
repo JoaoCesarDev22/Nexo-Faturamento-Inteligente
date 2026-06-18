@@ -972,24 +972,13 @@ def analise_deletar(id_analise):
     titulo_emp = analise.empresa.nome_fantasia or analise.empresa.razao_social
     id_str = f"#{analise.id_analise}"
 
-    # 1) Uploads + arquivos físicos
-    uploads = db.session.execute(
-        select(UploadRelatorio).where(UploadRelatorio.id_analise == id_analise)
-    ).scalars().all()
-    for up in uploads:
+    # Remove os ARQUIVOS FÍSICOS dos uploads antes de apagar os registros — a
+    # remoção das linhas-filhas (uploads, indicador, relatório e Curva ABC) é
+    # automática via cascade="all, delete-orphan" declarado em models.py.
+    for up in analise.uploads:
         storage.remover(up.caminho_arquivo)  # best-effort (ver storage.py)
-        db.session.delete(up)
 
-    # 2) IndicadorAnalise (1:1) — pode não existir se o ETL nunca rodou
-    if analise.indicador is not None:
-        db.session.delete(analise.indicador)
-
-    # 3) RelatorioAnalise (1:1) — pode não existir se nunca houve devolutiva
-    if analise.relatorio is not None:
-        db.session.delete(analise.relatorio)
-
-    # 4) Analise (pai)
-    db.session.delete(analise)
+    db.session.delete(analise)  # cascata ORM apaga todos os filhos na ordem certa
 
     try:
         db.session.commit()
